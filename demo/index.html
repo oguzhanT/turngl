@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>turngl demo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0f0e0d; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 16px; font-family: system-ui; }
+  turn-gl { width: min(90vw, 900px); height: min(80vh, 640px); border-radius: 4px; }
+  .controls { display: flex; gap: 8px; }
+  button { background: rgba(255,255,255,.08); color: #eee; border: 1px solid rgba(255,255,255,.15); padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  button:hover { background: rgba(255,255,255,.14); }
+  label { color: rgba(255,255,255,.4); font-size: 12px; font-family: monospace; }
+  input[type=text] { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.15); color: #eee; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-family: monospace; width: 340px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+<div class="row">
+  <label>PDF URL</label>
+  <input type="text" id="urlInput" value="https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf">
+  <button onclick="loadURL()">Load</button>
+</div>
+
+<turn-gl id="book" theme="dark"></turn-gl>
+
+<div class="controls">
+  <button onclick="book.prev()">← Prev</button>
+  <button onclick="book.next()">Next →</button>
+  <button onclick="toggleTheme()">Toggle Theme</button>
+</div>
+
+<script type="module">
+  // In a real project: import { TurnGLElement } from 'turngl';
+  // For this demo, load from parent dist:
+  import('../src/index.js').then(({ TurnGLElement }) => {
+    if (!customElements.get('turn-gl')) customElements.define('turn-gl', TurnGLElement);
+
+    window.book = document.getElementById('book');
+
+    book.addEventListener('load',       e => console.log(`✅ ${e.detail.pages} pages loaded`));
+    book.addEventListener('pagechange', e => console.log(`📖 Spread ${e.detail.spread + 1}, Page ${e.detail.page}`));
+    book.addEventListener('error',      e => console.error('❌', e.detail));
+
+    // Auto-load default PDF
+    book.load(document.getElementById('urlInput').value);
+
+    window.loadURL = () => book.load(document.getElementById('urlInput').value);
+    window.toggleTheme = () => {
+      const t = book.getAttribute('theme');
+      book.setAttribute('theme', t === 'dark' ? 'light' : 'dark');
+    };
+  });
+</script>
+</body>
+</html>

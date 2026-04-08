@@ -1,0 +1,58 @@
+{
+  "name": "turngl",
+  "version": "0.1.0",
+  "description": "WebGL-powered 3D PDF flipbook with real page curl. Drag to flip, dark/light mode, zero dependencies beyond Three.js and PDF.js.",
+  "main": "dist/turngl.js",
+  "module": "dist/turngl.esm.js",
+  "types": "dist/turngl.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/turngl.esm.js",
+      "require": "./dist/turngl.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "src/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "flipbook",
+    "pdf",
+    "webgl",
+    "3d",
+    "page-curl",
+    "page-flip",
+    "three.js",
+    "pdf.js",
+    "book",
+    "magazine",
+    "viewer"
+  ],
+  "author": "oguzhanT",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oguzhanT/turngl.git"
+  },
+  "homepage": "https://github.com/oguzhanT/turngl#readme",
+  "bugs": {
+    "url": "https://github.com/oguzhanT/turngl/issues"
+  },
+  "peerDependencies": {
+    "three": ">=0.128.0"
+  },
+  "devDependencies": {
+    "rollup": "^4.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-terser": "^0.4.0"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
