@@ -173,4 +173,4 @@ vertex[i].z = dist * sin(angle)   // z-depth peaks at 90° (toward viewer)
 
 ## License
 
-MIT © Ogi / RGLabs
+MIT © Oguzhan Togay
