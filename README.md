@@ -11,7 +11,7 @@ Drag to flip. Mouse-look camera tilt. Dark/light mode. Zero UI framework depende
 
 ## Demo
 
-[Live demo →](https://github.com/oguzhanT/turngl) <!-- replace with real URL -->
+[Live demo →](https://oguzhant.github.io/turngl/)
 
 ---
 
