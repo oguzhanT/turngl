@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta http-equiv="Content-Security-Policy"
+  content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com;
+  style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;
+  img-src data: blob:; connect-src https: blob:; worker-src blob:;">
 <title>turngl — 3D PDF Flipbook</title>
 
 <!-- ╔══════════════════════════════════════════════════════════╗
@@ -34,11 +38,27 @@ const TURNGL_CONFIG = {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdn.tailwindcss.com"></script>
-<script>tailwind.config={theme:{extend:{fontFamily:{serif:['"Cormorant Garamond"','serif'],sans:['"DM Sans"','sans-serif'],mono:['"DM Mono"','monospace']}}}}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous"></script>
 <style>
+/* ── Utility classes (replaces Tailwind CDN) ── */
+.h-full{height:100%}
+.flex{display:flex}
+.items-center{align-items:center}
+.gap-1{gap:4px}
+.gap-2{gap:8px}
+.shrink-0{flex-shrink:0}
+.select-none{user-select:none;-webkit-user-select:none}
+.font-serif{font-family:'Cormorant Garamond',serif}
+.flex-1{flex:1 1 0%}
+.min-w-0{min-width:0}
+.overflow-hidden{overflow:hidden}
+.text-ellipsis{text-overflow:ellipsis}
+.whitespace-nowrap{white-space:nowrap}
+.italic{font-style:italic}
+.mb-4{margin-bottom:1rem}
+
+/* ── Theme variables ── */
 :root{
   --bg:#0f0e0d;--sf:#1a1917;--sf2:#242220;
   --bd:rgba(255,255,255,.08);--bd2:rgba(255,255,255,.15);
@@ -127,6 +147,21 @@ html.light #tt .im{opacity:1;transform:translate(-50%,-50%) rotate(0deg)}
 .urldiv{display:flex;gap:6px;align-items:center}
 .urldiv span{font-size:10px;color:var(--tx3);font-family:'DM Mono',monospace;white-space:nowrap}
 
+/* ── Focus-visible styles (Phase 2A) ── */
+.tb:focus-visible,.ib:focus-visible,#pi:focus-visible,#urlin:focus-visible{
+  outline:2px solid var(--tx2);outline-offset:2px
+}
+
+/* ── prefers-reduced-motion (Phase 2C) ── */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}
+}
+
+/* ── Mobile touch targets + responsive toolbar (Phase 2E) ── */
+@media(pointer:coarse){.tb{min-width:44px;min-height:44px}.ib{min-width:44px;min-height:44px}}
+@media(max-width:560px){#tbar{overflow-x:auto;max-width:calc(100vw - 32px);scrollbar-width:none}
+  #tbar::-webkit-scrollbar{display:none}}
+
 </style>
 </head>
 <body class="h-full">
@@ -142,24 +177,12 @@ html.light #tt .im{opacity:1;transform:translate(-50%,-50%) rotate(0deg)}
   <div style="width:1px;height:18px;background:var(--bd);flex-shrink:0"></div>
   <p id="dt" class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-serif italic" style="font-size:.85rem;color:var(--tx2)">Demo — 14 Sayfa</p>
   <div class="flex items-center gap-1 shrink-0">
-    <button id="bl" class="ib" title="PDF Yükle / URL">
+    <button id="bl" class="ib" title="PDF Yükle / URL" aria-label="PDF Yükle / URL">
       <svg viewBox="0 0 14 14" fill="none" stroke="currentColor"><path d="M2 9v3h10V9"/><line x1="7" y1="1" x2="7" y2="8"/><polyline points="4,5 7,8 10,5"/></svg>
     </button>
-    <input type="file" id="pf" accept=".pdf">
+    <input type="file" id="pf" accept=".pdf" style="display:none">
   </div>
-</header>
-
-<!-- URL / File Popover -->
-<div id="urlpop">
-  <p style="font-size:10px;color:var(--tx3);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase">PDF Kaynağı</p>
-  <input id="urlin" type="url" placeholder="https://example.com/document.pdf" spellcheck="false">
-  <div class="urldiv">
-    <button id="urlgo" class="tb on" style="height:32px;flex:1;border-radius:6px">URL Yükle</button>
-    <span style="color:var(--tx3)">ya da</span>
-    <button id="filego" class="tb" style="height:32px;border-radius:6px">Dosya Seç</button>
-  </div>
-</div>
-    <button id="tt" class="ib" title="Tema (L)">
+    <button id="tt" class="ib" title="Tema (L)" aria-label="Tema (L)">
       <svg class="is" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" style="stroke-width:1.4">
         <circle cx="7" cy="7" r="2.5"/><line x1="7" y1="1" x2="7" y2="2.5"/><line x1="7" y1="11.5" x2="7" y2="13"/>
         <line x1="1" y1="7" x2="2.5" y2="7"/><line x1="11.5" y1="7" x2="13" y2="7"/>
@@ -170,39 +193,50 @@ html.light #tt .im{opacity:1;transform:translate(-50%,-50%) rotate(0deg)}
         <path d="M11.5 8.5A5 5 0 015.5 2.5 5 5 0 1011.5 8.5z"/>
       </svg>
     </button>
-    <button id="bkb" class="ib" title="Kısayollar (?)">
+    <button id="bkb" class="ib" title="Kısayollar (?)" aria-label="Kısayollar (?)">
       <svg viewBox="0 0 13 10" fill="none" stroke="currentColor"><rect x=".5" y=".5" width="12" height="9" rx="1.5"/><circle cx="3.5" cy="4.5" r=".8" fill="currentColor"/><circle cx="6.5" cy="4.5" r=".8" fill="currentColor"/><circle cx="9.5" cy="4.5" r=".8" fill="currentColor"/><line x1="4.5" y1="7" x2="8.5" y2="7" stroke-linecap="round" stroke-width="1.5"/></svg>
     </button>
-    <button id="bfs" class="ib" title="Tam ekran (F)">
+    <button id="bfs" class="ib" title="Tam ekran (F)" aria-label="Tam ekran (F)">
       <svg viewBox="0 0 14 14" fill="none" stroke="currentColor"><path d="M1 4.5V1h3.5M9.5 1H13v3.5M13 9.5V13H9.5M4.5 13H1V9.5"/></svg>
     </button>
   </div>
   <div id="pl"></div>
 </header>
 
+<!-- URL / File Popover -->
+<div id="urlpop" role="dialog" aria-label="PDF Kaynagi">
+  <p style="font-size:10px;color:var(--tx3);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase">PDF Kaynağı</p>
+  <input id="urlin" type="url" placeholder="https://example.com/document.pdf" spellcheck="false" aria-label="PDF URL">
+  <div class="urldiv">
+    <button id="urlgo" class="tb on" style="height:32px;flex:1;border-radius:6px" aria-label="URL Yükle">URL Yükle</button>
+    <span style="color:var(--tx3)">ya da</span>
+    <button id="filego" class="tb" style="height:32px;border-radius:6px" aria-label="Dosya Seç">Dosya Seç</button>
+  </div>
+</div>
+
 <aside id="panel"><div class="ph"><span>Sayfalar</span><span id="pc" style="color:var(--tx3)"></span></div><div id="tg"></div></aside>
 
 <div id="stage"><canvas id="bookCanvas"></canvas></div>
 
 <div id="tbar">
-  <button id="bp" class="tb" title="Sayfalar (T)"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor"><rect x="1" y="1" width="5.5" height="5.5" rx=".8"/><rect x="7.5" y="1" width="5.5" height="5.5" rx=".8"/><rect x="1" y="7.5" width="5.5" height="5.5" rx=".8"/><rect x="7.5" y="7.5" width="5.5" height="5.5" rx=".8"/></svg></button>
+  <button id="bp" class="tb" title="Sayfalar (T)" aria-label="Sayfalar (T)"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor"><rect x="1" y="1" width="5.5" height="5.5" rx=".8"/><rect x="7.5" y="1" width="5.5" height="5.5" rx=".8"/><rect x="1" y="7.5" width="5.5" height="5.5" rx=".8"/><rect x="7.5" y="7.5" width="5.5" height="5.5" rx=".8"/></svg></button>
   <div class="sep"></div>
-  <button id="b1" class="tb" title="İlk (Home)" disabled><svg viewBox="0 0 12 12" fill="none" stroke="currentColor"><line x1="1.5" y1="1.5" x2="1.5" y2="10.5"/><polyline points="10.5,2 4,6 10.5,10"/></svg></button>
-  <button id="b2" class="tb" title="Önceki (←)" disabled><svg viewBox="0 0 12 12" fill="none" stroke="currentColor"><polyline points="8,2 3,6 8,10"/></svg></button>
-  <div class="pb"><input id="pi" type="number" value="1" min="1" autocomplete="off"><span id="ps">/</span><span id="pt">14</span></div>
-  <button id="b3" class="tb" title="Sonraki (→)"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor"><polyline points="4,2 9,6 4,10"/></svg></button>
-  <button id="b4" class="tb" title="Son (End)"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor"><line x1="10.5" y1="1.5" x2="10.5" y2="10.5"/><polyline points="1.5,2 8,6 1.5,10"/></svg></button>
+  <button id="b1" class="tb" title="İlk (Home)" aria-label="İlk sayfa" disabled><svg viewBox="0 0 12 12" fill="none" stroke="currentColor"><line x1="1.5" y1="1.5" x2="1.5" y2="10.5"/><polyline points="10.5,2 4,6 10.5,10"/></svg></button>
+  <button id="b2" class="tb" title="Önceki (←)" aria-label="Önceki sayfa" disabled><svg viewBox="0 0 12 12" fill="none" stroke="currentColor"><polyline points="8,2 3,6 8,10"/></svg></button>
+  <div class="pb"><input id="pi" type="number" value="1" min="1" autocomplete="off" aria-label="Sayfa numarasi"><span id="ps">/</span><span id="pt">14</span></div>
+  <button id="b3" class="tb" title="Sonraki (→)" aria-label="Sonraki sayfa"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor"><polyline points="4,2 9,6 4,10"/></svg></button>
+  <button id="b4" class="tb" title="Son (End)" aria-label="Son sayfa"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor"><line x1="10.5" y1="1.5" x2="10.5" y2="10.5"/><polyline points="1.5,2 8,6 1.5,10"/></svg></button>
   <div class="sep"></div>
-  <button id="bzo" class="tb" title="Uzaklaştır (−)"><svg viewBox="0 0 13 13" fill="none" stroke="currentColor"><circle cx="5.5" cy="5.5" r="3.8"/><line x1="8.5" y1="8.5" x2="12" y2="12"/><line x1="3.5" y1="5.5" x2="7.5" y2="5.5"/></svg></button>
-  <div id="zp" title="Sıfırla (Z)">100%</div>
-  <button id="bzi" class="tb" title="Yaklaştır (+)"><svg viewBox="0 0 13 13" fill="none" stroke="currentColor"><circle cx="5.5" cy="5.5" r="3.8"/><line x1="8.5" y1="8.5" x2="12" y2="12"/><line x1="3.5" y1="5.5" x2="7.5" y2="5.5"/><line x1="5.5" y1="3.5" x2="5.5" y2="7.5"/></svg></button>
-  <button id="bwf" class="tb" title="Sığdır (W)"><svg viewBox="0 0 13 13" fill="none" stroke="currentColor"><polyline points="1,3.5 1,1 3.5,1"/><polyline points="9.5,1 12,1 12,3.5"/><polyline points="1,9.5 1,12 3.5,12"/><polyline points="9.5,12 12,12 12,9.5"/></svg></button>
+  <button id="bzo" class="tb" title="Uzaklaştır (−)" aria-label="Uzaklaştır"><svg viewBox="0 0 13 13" fill="none" stroke="currentColor"><circle cx="5.5" cy="5.5" r="3.8"/><line x1="8.5" y1="8.5" x2="12" y2="12"/><line x1="3.5" y1="5.5" x2="7.5" y2="5.5"/></svg></button>
+  <div id="zp" title="Sıfırla (Z)" aria-label="Zoom sıfırla">100%</div>
+  <button id="bzi" class="tb" title="Yaklaştır (+)" aria-label="Yaklaştır"><svg viewBox="0 0 13 13" fill="none" stroke="currentColor"><circle cx="5.5" cy="5.5" r="3.8"/><line x1="8.5" y1="8.5" x2="12" y2="12"/><line x1="3.5" y1="5.5" x2="7.5" y2="5.5"/><line x1="5.5" y1="3.5" x2="5.5" y2="7.5"/></svg></button>
+  <button id="bwf" class="tb" title="Sığdır (W)" aria-label="Sığdır"><svg viewBox="0 0 13 13" fill="none" stroke="currentColor"><polyline points="1,3.5 1,1 3.5,1"/><polyline points="9.5,1 12,1 12,3.5"/><polyline points="1,9.5 1,12 3.5,12"/><polyline points="9.5,12 12,12 12,9.5"/></svg></button>
 </div>
 
-<div id="lov"><p class="font-serif" style="font-size:1.1rem;color:var(--tx);letter-spacing:.06em">PDF Yükleniyor</p><div id="lb"><div id="lf"></div></div><p id="lm">Hazırlanıyor…</p></div>
+<div id="lov" role="dialog" aria-modal="true" aria-label="PDF yükleniyor"><p class="font-serif" style="font-size:1.1rem;color:var(--tx);letter-spacing:.06em">PDF Yükleniyor</p><div id="lb"><div id="lf"></div></div><p id="lm">Hazırlanıyor…</p></div>
 
-<div id="kbm"><div class="kbc">
-  <button id="kbc" class="ib" style="position:absolute;top:10px;right:10px"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg></button>
+<div id="kbm" role="dialog" aria-modal="true" aria-label="Klavye kısayolları"><div class="kbc">
+  <button id="kbc" class="ib" style="position:absolute;top:10px;right:10px" aria-label="Kapat"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg></button>
   <p class="font-serif mb-4" style="font-size:1.05rem;letter-spacing:.04em;color:var(--tx)">Klavye Kısayolları</p>
   <div class="kbg">
     <kbd>← →</kbd><span class="kbl">Sayfa çevir</span>
@@ -214,13 +248,29 @@ html.light #tt .im{opacity:1;transform:translate(-50%,-50%) rotate(0deg)}
     <kbd>F</kbd><span class="kbl">Tam ekran</span>
   </div>
 </div></div>
-<div id="toast"></div>
+<div id="toast" aria-live="polite"></div>
 
 
 <script>
-/* ── Canvas page res ─ */
-const CPW=780,CPH=1102;
-const PD=[
+'use strict';
+
+/* ═══════════════════════════════════════════════════════
+   Named Constants (Phase 3A)
+═══════════════════════════════════════════════════════ */
+const CANVAS_W = 780, CANVAS_H = 1102;
+const PAGE_W = 1.65, PAGE_H = 2.33;
+const DEFAULT_CAM_Z = 6.0;
+const CAM_LERP = 0.055;
+const DRAG_SENS = 2.2;
+const VEL_THRESH = 0.018;
+const FLIP_COMMIT_FAST = 0.12, FLIP_COMMIT_SLOW = 0.38;
+const TOAST_MS = 950;
+const THEME_TRANS_MS = 320;
+
+/* ═══════════════════════════════════════════════════════
+   PageStore — encapsulated global state (Phase 6)
+═══════════════════════════════════════════════════════ */
+const DEMO_PAGES = [
   {t:'cover',c:'#6888b8',bg:['#0a0e16','#050810'],l:'Annual Report',   s:'FOLIO GROUP · MMXXIV'},
   {t:'exec', c:'#a07858',bg:['#120d08','#080504'],l:'Executive Summary',s:'SECTION ONE'},
   {t:'data', c:'#4a9870',bg:['#081210','#040808'],l:'Financial Review', s:'SECTION TWO'},
@@ -236,437 +286,1193 @@ const PD=[
   {t:'quote',c:'#4888a8',bg:['#081014','#040810'],l:'Acknowledgements', s:'SECTION TWELVE'},
   {t:'back', c:'#6888b8',bg:['#0a0e16','#050810'],l:'Folio',            s:'CAPITAL GROUP · MMXXIV'},
 ];
-let PAGES=new Array(PD.length).fill(null), TOTAL=PD.length, ri=0;
-function rga(h,a){const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return`rgba(${r},${g},${b},${a})`}
-function mkPage(i){
-  const cv=document.createElement('canvas');cv.width=CPW;cv.height=CPH;
-  const c=cv.getContext('2d'),d=PD[i%PD.length];
-  const gd=c.createLinearGradient(0,0,CPW,CPH);gd.addColorStop(0,d.bg[0]);gd.addColorStop(1,d.bg[1]);
-  c.fillStyle=gd;c.fillRect(0,0,CPW,CPH);
-  const rd=c.createRadialGradient(CPW*.5,CPH*.4,0,CPW*.5,CPH*.4,CPW*.56);rd.addColorStop(0,rga(d.c,.09));rd.addColorStop(1,'transparent');
-  c.fillStyle=rd;c.fillRect(0,0,CPW,CPH);
-  ({cover:dCover,back:dBack,exec:dExec,data:dData,grid:dGrid,quote:dQuote}[d.t]||dExec)(c,d,i);
-  c.strokeStyle=rga(d.c,.1);c.lineWidth=1.4;c.strokeRect(26,26,CPW-52,CPH-52);
-  c.fillStyle=rga(d.c,.24);c.font='300 16px "DM Mono"';c.textAlign='center';c.fillText('FOLIO  ·  MMXXIV',CPW/2,CPH-36);
-  c.textAlign='right';c.fillText(i+1,CPW-32,CPH-36);return cv;
-}
-function dCover(c,d){const cx=CPW/2;for(let k=5;k>0;k--){c.beginPath();c.arc(cx,CPH*.38,(k/5)*296,0,Math.PI*2);c.strokeStyle=rga(d.c,k*.038);c.lineWidth=1.4;c.stroke()}const rg=c.createRadialGradient(cx,CPH*.38,0,cx,CPH*.38,204);rg.addColorStop(0,rga(d.c,.11));rg.addColorStop(1,'transparent');c.fillStyle=rg;c.fillRect(0,0,CPW,CPH);c.fillStyle=rga(d.c,.88);c.font='300 44px "Cormorant Garamond"';c.textAlign='center';c.fillText(d.l,cx,CPH*.62);c.fillStyle=rga(d.c,.32);c.font='300 15px "DM Mono"';c.fillText(d.s,cx,CPH*.69);c.fillStyle=rga(d.c,.04);c.font='300 210px "Cormorant Garamond"';c.fillText('2024',cx,CPH*.88)}
-function dBack(c,d){const cx=CPW/2,cy=CPH*.5;for(let k=4;k>0;k--){c.beginPath();c.arc(cx,cy,(k/4)*224,0,Math.PI*2);c.strokeStyle=rga(d.c,k*.034);c.lineWidth=1.2;c.stroke()}c.fillStyle=rga(d.c,.06);c.font='300 160px "Cormorant Garamond"';c.textAlign='center';c.fillText('Folio',cx,cy+52);c.fillStyle=rga(d.c,.68);c.font='300 40px "Cormorant Garamond"';c.fillText(d.l,cx,cy+16);c.strokeStyle=rga(d.c,.15);c.lineWidth=1;c.beginPath();c.moveTo(cx-96,cy+44);c.lineTo(cx+96,cy+44);c.stroke();c.fillStyle=rga(d.c,.26);c.font='300 15px "DM Mono"';c.fillText(d.s,cx,cy+68)}
-function dExec(c,d){const m=60;c.fillStyle=rga(d.c,.34);c.font='300 15px "DM Mono"';c.textAlign='left';c.fillText(d.s,m,100);c.strokeStyle=rga(d.c,.15);c.lineWidth=1;c.beginPath();c.moveTo(m,116);c.lineTo(CPW-m,116);c.stroke();c.fillStyle=rga(d.c,.84);c.font='400 34px "Cormorant Garamond"';c.fillText(d.l,m,160);const rows=[[.9,.72,.88,.5,.92],[.78,.62,.86,.68,.7],[.8,.55,.9,.6,0]];let y=204;rows.forEach(row=>{row.forEach(l=>{if(!l){y+=16;return}c.fillStyle=rga(d.c,.09+(l*.05));c.fillRect(m,y,(CPW-m*2)*l,12);y+=22});y+=8});const qy=656;c.fillStyle=rga(d.c,.05);c.fillRect(m,qy,CPW-m*2,160);c.strokeStyle=rga(d.c,.14);c.lineWidth=1.6;c.strokeRect(m,qy,CPW-m*2,160);c.fillStyle=rga(d.c,.48);c.font='italic 300 25px "Cormorant Garamond"';c.textAlign='center';c.fillText('"Clarity of purpose multiplies',CPW/2,qy+52);c.fillText('the impact of every decision."',CPW/2,qy+86);c.fillStyle=rga(d.c,.24);c.font='300 15px "DM Mono"';c.fillText('— CHIEF EXECUTIVE OFFICER',CPW/2,qy+124);const sx=CPW-m-164,sw=160;[['Revenue','$4.8B'],['EBITDA','38%'],['Growth','+22%']].forEach(([l,v],r)=>{const by=204+r*88;c.fillStyle=rga(d.c,.05);c.fillRect(sx,by,sw,72);c.strokeStyle=rga(d.c,.11);c.lineWidth=1;c.strokeRect(sx,by,sw,72);c.fillStyle=rga(d.c,.24);c.font='300 14px "DM Mono"';c.textAlign='center';c.fillText(l,sx+sw/2,by+24);c.fillStyle=rga(d.c,.7);c.font='300 25px "Cormorant Garamond"';c.fillText(v,sx+sw/2,by+54)})}
-function dData(c,d){const m=56;c.fillStyle=rga(d.c,.34);c.font='300 15px "DM Mono"';c.textAlign='left';c.fillText(d.s,m,100);c.fillStyle=rga(d.c,.84);c.font='400 34px "Cormorant Garamond"';c.fillText(d.l,m,148);const bw=60,gap=18,y0=616,mh=332;[.52,.78,.61,.92,.74,.58,.84,.66].forEach((v,k)=>{const x=m+k*(bw+gap),bh=v*mh;c.fillStyle=rga(d.c,.07+v*.13);c.fillRect(x,y0-bh,bw,bh);c.strokeStyle=rga(d.c,.2);c.lineWidth=1;c.strokeRect(x,y0-bh,bw,bh);c.fillStyle=rga(d.c,.4);c.font='300 15px "DM Mono"';c.textAlign='center';c.fillText(Math.round(v*100)+'%',x+bw/2,y0-bh-10);c.fillStyle=rga(d.c,.24);c.fillText(['Q1','Q2','Q3','Q4','H1','H2','FY','TGT'][k],x+bw/2,y0+22)});c.strokeStyle=rga(d.c,.11);c.lineWidth=1;c.beginPath();c.moveTo(m,616);c.lineTo(CPW-m,616);c.stroke();const dcx=CPW-148,dcy=330;let ang=-Math.PI/2;[.32,.22,.26,.2].forEach((sv,k)=>{const ea=ang+sv*Math.PI*2;c.beginPath();c.moveTo(dcx+Math.cos(ang)*60,dcy+Math.sin(ang)*60);c.arc(dcx,dcy,96,ang,ea);c.arc(dcx,dcy,60,ea,ang,true);c.closePath();c.fillStyle=rga(d.c,[.48,.32,.19,.11][k]);c.fill();ang=ea});c.strokeStyle=rga(d.c,.18);c.lineWidth=1.4;c.beginPath();[0,.3,.5,.45,.7,.65,.88,.92,1].forEach((v,k)=>{const x=m+k*(CPW-m*2-180)/8,y=304-v*104;k===0?c.moveTo(x,y):c.lineTo(x,y)});c.stroke()}
-function dGrid(c,d){const m=56;c.fillStyle=rga(d.c,.34);c.font='300 15px "DM Mono"';c.textAlign='left';c.fillText(d.s,m,100);c.fillStyle=rga(d.c,.84);c.font='400 34px "Cormorant Garamond"';c.fillText(d.l,m,148);c.strokeStyle=rga(d.c,.12);c.lineWidth=1;c.beginPath();c.moveTo(m,164);c.lineTo(CPW-m,164);c.stroke();const cols=3,gw=(CPW-m*2-cols*10)/cols,gh=160;for(let r=0;r<2;r++)for(let col=0;col<cols;col++){const x=m+col*(gw+10),y=188+r*(gh+12);c.fillStyle=rga(d.c,.045+((r*cols+col)%4)*.016);c.fillRect(x,y,gw,gh);c.strokeStyle=rga(d.c,.1);c.lineWidth=1;c.strokeRect(x,y,gw,gh);c.fillStyle=rga(d.c,.12);c.fillRect(x+12,y+gh-28,gw-24,8);c.fillRect(x+12,y+gh-16,(gw-24)*.6,6)}[['European Markets','€2.1B',.88],['Asia Pacific','$1.8B',.72],['Americas','$1.3B',.55],['MENA & Africa','$0.6B',.38]].forEach(([nm,val,pct],k)=>{const ly=584+k*80;c.fillStyle=rga(d.c,.17);c.fillRect(m,ly,6,48);c.fillStyle=rga(d.c,.66);c.font='400 22px "Cormorant Garamond"';c.textAlign='left';c.fillText(nm,m+18,ly+24);c.fillStyle=rga(d.c,.34);c.font='300 14px "DM Mono"';c.fillText(val,m+18,ly+46);const tw=CPW-m*2-100;c.fillStyle=rga(d.c,.06);c.fillRect(m+18,ly+54,tw,6);c.fillStyle=rga(d.c,.19);c.fillRect(m+18,ly+54,tw*pct,6)})}
-function dQuote(c,d){const cx=CPW/2;c.fillStyle=rga(d.c,.34);c.font='300 15px "DM Mono"';c.textAlign='center';c.fillText(d.s,cx,100);c.fillStyle=rga(d.c,.05);c.font='300 300px "Cormorant Garamond"';c.fillText('\u201C',cx,CPH*.54);c.fillStyle=rga(d.c,.8);c.font='italic 300 34px "Cormorant Garamond"';c.fillText('The discipline of capital',cx,CPH*.35);c.fillText('allocation defines the decade.',cx,CPH*.42);c.strokeStyle=rga(d.c,.13);c.lineWidth=1;c.beginPath();c.moveTo(cx-96,CPH*.48);c.lineTo(cx+96,CPH*.48);c.stroke();c.fillStyle=rga(d.c,.28);c.font='300 15px "DM Mono"';c.fillText("CHAIRMAN'S ADDRESS · "+d.l.toUpperCase(),cx,CPH*.53)}
-function renderChunk(dl){while(ri<TOTAL){if(ri<PD.length)PAGES[ri]=mkPage(ri);ri++;if(dl.timeRemaining()<2&&ri<TOTAL){requestIdleCallback(renderChunk);return}}window._rdy&&window._rdy()}
-const rIC=window.requestIdleCallback||(cb=>setTimeout(()=>cb({timeRemaining:()=>16}),1));rIC(renderChunk);
-</script>
 
-<script>
-'use strict';
+const PageStore = {
+  pages: new Array(DEMO_PAGES.length).fill(null),
+  total: DEMO_PAGES.length,
+  renderIdx: 0
+};
+
+/* ═══════════════════════════════════════════════════════
+   Helpers
+═══════════════════════════════════════════════════════ */
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const easeInOut = t => t < .5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
+function hexToRGBA(h, a) {
+  const r = parseInt(h.slice(1, 3), 16);
+  const g = parseInt(h.slice(3, 5), 16);
+  const b = parseInt(h.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Demo Page Generators (Phase 4A — expanded)
+═══════════════════════════════════════════════════════ */
+function mkPage(i) {
+  const cv = document.createElement('canvas');
+  cv.width = CANVAS_W;
+  cv.height = CANVAS_H;
+  const c = cv.getContext('2d');
+  const d = DEMO_PAGES[i % DEMO_PAGES.length];
+
+  // Background gradient
+  const gd = c.createLinearGradient(0, 0, CANVAS_W, CANVAS_H);
+  gd.addColorStop(0, d.bg[0]);
+  gd.addColorStop(1, d.bg[1]);
+  c.fillStyle = gd;
+  c.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // Radial glow
+  const rd = c.createRadialGradient(CANVAS_W * .5, CANVAS_H * .4, 0, CANVAS_W * .5, CANVAS_H * .4, CANVAS_W * .56);
+  rd.addColorStop(0, hexToRGBA(d.c, .09));
+  rd.addColorStop(1, 'transparent');
+  c.fillStyle = rd;
+  c.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // Dispatch to page type renderer
+  ({cover: dCover, back: dBack, exec: dExec, data: dData, grid: dGrid, quote: dQuote}[d.t] || dExec)(c, d, i);
+
+  // Border frame
+  c.strokeStyle = hexToRGBA(d.c, .1);
+  c.lineWidth = 1.4;
+  c.strokeRect(26, 26, CANVAS_W - 52, CANVAS_H - 52);
+
+  // Footer
+  c.fillStyle = hexToRGBA(d.c, .24);
+  c.font = '300 16px "DM Mono"';
+  c.textAlign = 'center';
+  c.fillText('FOLIO  ·  MMXXIV', CANVAS_W / 2, CANVAS_H - 36);
+  c.textAlign = 'right';
+  c.fillText(i + 1, CANVAS_W - 32, CANVAS_H - 36);
+
+  return cv;
+}
+
+function dCover(c, d) {
+  const cx = CANVAS_W / 2;
+
+  // Concentric rings
+  for (let k = 5; k > 0; k--) {
+    c.beginPath();
+    c.arc(cx, CANVAS_H * .38, (k / 5) * 296, 0, Math.PI * 2);
+    c.strokeStyle = hexToRGBA(d.c, k * .038);
+    c.lineWidth = 1.4;
+    c.stroke();
+  }
+
+  // Center glow
+  const rg = c.createRadialGradient(cx, CANVAS_H * .38, 0, cx, CANVAS_H * .38, 204);
+  rg.addColorStop(0, hexToRGBA(d.c, .11));
+  rg.addColorStop(1, 'transparent');
+  c.fillStyle = rg;
+  c.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // Title text
+  c.fillStyle = hexToRGBA(d.c, .88);
+  c.font = '300 44px "Cormorant Garamond"';
+  c.textAlign = 'center';
+  c.fillText(d.l, cx, CANVAS_H * .62);
+
+  // Subtitle
+  c.fillStyle = hexToRGBA(d.c, .32);
+  c.font = '300 15px "DM Mono"';
+  c.fillText(d.s, cx, CANVAS_H * .69);
+
+  // Year watermark
+  c.fillStyle = hexToRGBA(d.c, .04);
+  c.font = '300 210px "Cormorant Garamond"';
+  c.fillText('2024', cx, CANVAS_H * .88);
+}
+
+function dBack(c, d) {
+  const cx = CANVAS_W / 2;
+  const cy = CANVAS_H * .5;
+
+  // Concentric rings
+  for (let k = 4; k > 0; k--) {
+    c.beginPath();
+    c.arc(cx, cy, (k / 4) * 224, 0, Math.PI * 2);
+    c.strokeStyle = hexToRGBA(d.c, k * .034);
+    c.lineWidth = 1.2;
+    c.stroke();
+  }
+
+  // Background text
+  c.fillStyle = hexToRGBA(d.c, .06);
+  c.font = '300 160px "Cormorant Garamond"';
+  c.textAlign = 'center';
+  c.fillText('Folio', cx, cy + 52);
+
+  // Title
+  c.fillStyle = hexToRGBA(d.c, .68);
+  c.font = '300 40px "Cormorant Garamond"';
+  c.fillText(d.l, cx, cy + 16);
+
+  // Divider line
+  c.strokeStyle = hexToRGBA(d.c, .15);
+  c.lineWidth = 1;
+  c.beginPath();
+  c.moveTo(cx - 96, cy + 44);
+  c.lineTo(cx + 96, cy + 44);
+  c.stroke();
+
+  // Subtitle
+  c.fillStyle = hexToRGBA(d.c, .26);
+  c.font = '300 15px "DM Mono"';
+  c.fillText(d.s, cx, cy + 68);
+}
+
+function dExec(c, d) {
+  const m = 60;
+
+  // Section header
+  c.fillStyle = hexToRGBA(d.c, .34);
+  c.font = '300 15px "DM Mono"';
+  c.textAlign = 'left';
+  c.fillText(d.s, m, 100);
+
+  // Divider
+  c.strokeStyle = hexToRGBA(d.c, .15);
+  c.lineWidth = 1;
+  c.beginPath();
+  c.moveTo(m, 116);
+  c.lineTo(CANVAS_W - m, 116);
+  c.stroke();
+
+  // Title
+  c.fillStyle = hexToRGBA(d.c, .84);
+  c.font = '400 34px "Cormorant Garamond"';
+  c.fillText(d.l, m, 160);
+
+  // Text placeholder rows
+  const rows = [[.9, .72, .88, .5, .92], [.78, .62, .86, .68, .7], [.8, .55, .9, .6, 0]];
+  let y = 204;
+  rows.forEach(row => {
+    row.forEach(l => {
+      if (!l) { y += 16; return; }
+      c.fillStyle = hexToRGBA(d.c, .09 + (l * .05));
+      c.fillRect(m, y, (CANVAS_W - m * 2) * l, 12);
+      y += 22;
+    });
+    y += 8;
+  });
+
+  // Quote box
+  const qy = 656;
+  c.fillStyle = hexToRGBA(d.c, .05);
+  c.fillRect(m, qy, CANVAS_W - m * 2, 160);
+  c.strokeStyle = hexToRGBA(d.c, .14);
+  c.lineWidth = 1.6;
+  c.strokeRect(m, qy, CANVAS_W - m * 2, 160);
+  c.fillStyle = hexToRGBA(d.c, .48);
+  c.font = 'italic 300 25px "Cormorant Garamond"';
+  c.textAlign = 'center';
+  c.fillText('"Clarity of purpose multiplies', CANVAS_W / 2, qy + 52);
+  c.fillText('the impact of every decision."', CANVAS_W / 2, qy + 86);
+  c.fillStyle = hexToRGBA(d.c, .24);
+  c.font = '300 15px "DM Mono"';
+  c.fillText('— CHIEF EXECUTIVE OFFICER', CANVAS_W / 2, qy + 124);
+
+  // Stats boxes
+  const sx = CANVAS_W - m - 164;
+  const sw = 160;
+  [['Revenue', '$4.8B'], ['EBITDA', '38%'], ['Growth', '+22%']].forEach(([l, v], r) => {
+    const by = 204 + r * 88;
+    c.fillStyle = hexToRGBA(d.c, .05);
+    c.fillRect(sx, by, sw, 72);
+    c.strokeStyle = hexToRGBA(d.c, .11);
+    c.lineWidth = 1;
+    c.strokeRect(sx, by, sw, 72);
+    c.fillStyle = hexToRGBA(d.c, .24);
+    c.font = '300 14px "DM Mono"';
+    c.textAlign = 'center';
+    c.fillText(l, sx + sw / 2, by + 24);
+    c.fillStyle = hexToRGBA(d.c, .7);
+    c.font = '300 25px "Cormorant Garamond"';
+    c.fillText(v, sx + sw / 2, by + 54);
+  });
+}
+
+function dData(c, d) {
+  const m = 56;
+
+  // Header
+  c.fillStyle = hexToRGBA(d.c, .34);
+  c.font = '300 15px "DM Mono"';
+  c.textAlign = 'left';
+  c.fillText(d.s, m, 100);
+  c.fillStyle = hexToRGBA(d.c, .84);
+  c.font = '400 34px "Cormorant Garamond"';
+  c.fillText(d.l, m, 148);
+
+  // Bar chart
+  const bw = 60, gap = 18, y0 = 616, mh = 332;
+  [.52, .78, .61, .92, .74, .58, .84, .66].forEach((v, k) => {
+    const x = m + k * (bw + gap);
+    const bh = v * mh;
+    c.fillStyle = hexToRGBA(d.c, .07 + v * .13);
+    c.fillRect(x, y0 - bh, bw, bh);
+    c.strokeStyle = hexToRGBA(d.c, .2);
+    c.lineWidth = 1;
+    c.strokeRect(x, y0 - bh, bw, bh);
+    c.fillStyle = hexToRGBA(d.c, .4);
+    c.font = '300 15px "DM Mono"';
+    c.textAlign = 'center';
+    c.fillText(Math.round(v * 100) + '%', x + bw / 2, y0 - bh - 10);
+    c.fillStyle = hexToRGBA(d.c, .24);
+    c.fillText(['Q1', 'Q2', 'Q3', 'Q4', 'H1', 'H2', 'FY', 'TGT'][k], x + bw / 2, y0 + 22);
+  });
+
+  // Base line
+  c.strokeStyle = hexToRGBA(d.c, .11);
+  c.lineWidth = 1;
+  c.beginPath();
+  c.moveTo(m, 616);
+  c.lineTo(CANVAS_W - m, 616);
+  c.stroke();
+
+  // Donut chart
+  const dcx = CANVAS_W - 148, dcy = 330;
+  let ang = -Math.PI / 2;
+  [.32, .22, .26, .2].forEach((sv, k) => {
+    const ea = ang + sv * Math.PI * 2;
+    c.beginPath();
+    c.moveTo(dcx + Math.cos(ang) * 60, dcy + Math.sin(ang) * 60);
+    c.arc(dcx, dcy, 96, ang, ea);
+    c.arc(dcx, dcy, 60, ea, ang, true);
+    c.closePath();
+    c.fillStyle = hexToRGBA(d.c, [.48, .32, .19, .11][k]);
+    c.fill();
+    ang = ea;
+  });
+
+  // Trend line
+  c.strokeStyle = hexToRGBA(d.c, .18);
+  c.lineWidth = 1.4;
+  c.beginPath();
+  [0, .3, .5, .45, .7, .65, .88, .92, 1].forEach((v, k) => {
+    const x = m + k * (CANVAS_W - m * 2 - 180) / 8;
+    const y = 304 - v * 104;
+    k === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+  });
+  c.stroke();
+}
+
+function dGrid(c, d) {
+  const m = 56;
+
+  // Header
+  c.fillStyle = hexToRGBA(d.c, .34);
+  c.font = '300 15px "DM Mono"';
+  c.textAlign = 'left';
+  c.fillText(d.s, m, 100);
+  c.fillStyle = hexToRGBA(d.c, .84);
+  c.font = '400 34px "Cormorant Garamond"';
+  c.fillText(d.l, m, 148);
+
+  // Divider
+  c.strokeStyle = hexToRGBA(d.c, .12);
+  c.lineWidth = 1;
+  c.beginPath();
+  c.moveTo(m, 164);
+  c.lineTo(CANVAS_W - m, 164);
+  c.stroke();
+
+  // Grid cards
+  const cols = 3;
+  const gw = (CANVAS_W - m * 2 - cols * 10) / cols;
+  const gh = 160;
+  for (let r = 0; r < 2; r++) {
+    for (let col = 0; col < cols; col++) {
+      const x = m + col * (gw + 10);
+      const y = 188 + r * (gh + 12);
+      c.fillStyle = hexToRGBA(d.c, .045 + ((r * cols + col) % 4) * .016);
+      c.fillRect(x, y, gw, gh);
+      c.strokeStyle = hexToRGBA(d.c, .1);
+      c.lineWidth = 1;
+      c.strokeRect(x, y, gw, gh);
+      c.fillStyle = hexToRGBA(d.c, .12);
+      c.fillRect(x + 12, y + gh - 28, gw - 24, 8);
+      c.fillRect(x + 12, y + gh - 16, (gw - 24) * .6, 6);
+    }
+  }
+
+  // Regional data rows
+  [
+    ['European Markets', '\u20AC2.1B', .88],
+    ['Asia Pacific', '$1.8B', .72],
+    ['Americas', '$1.3B', .55],
+    ['MENA & Africa', '$0.6B', .38]
+  ].forEach(([nm, val, pct], k) => {
+    const ly = 584 + k * 80;
+    c.fillStyle = hexToRGBA(d.c, .17);
+    c.fillRect(m, ly, 6, 48);
+    c.fillStyle = hexToRGBA(d.c, .66);
+    c.font = '400 22px "Cormorant Garamond"';
+    c.textAlign = 'left';
+    c.fillText(nm, m + 18, ly + 24);
+    c.fillStyle = hexToRGBA(d.c, .34);
+    c.font = '300 14px "DM Mono"';
+    c.fillText(val, m + 18, ly + 46);
+    const tw = CANVAS_W - m * 2 - 100;
+    c.fillStyle = hexToRGBA(d.c, .06);
+    c.fillRect(m + 18, ly + 54, tw, 6);
+    c.fillStyle = hexToRGBA(d.c, .19);
+    c.fillRect(m + 18, ly + 54, tw * pct, 6);
+  });
+}
+
+function dQuote(c, d) {
+  const cx = CANVAS_W / 2;
+
+  // Section label
+  c.fillStyle = hexToRGBA(d.c, .34);
+  c.font = '300 15px "DM Mono"';
+  c.textAlign = 'center';
+  c.fillText(d.s, cx, 100);
+
+  // Large quotation mark
+  c.fillStyle = hexToRGBA(d.c, .05);
+  c.font = '300 300px "Cormorant Garamond"';
+  c.fillText('\u201C', cx, CANVAS_H * .54);
+
+  // Quote text
+  c.fillStyle = hexToRGBA(d.c, .8);
+  c.font = 'italic 300 34px "Cormorant Garamond"';
+  c.fillText('The discipline of capital', cx, CANVAS_H * .35);
+  c.fillText('allocation defines the decade.', cx, CANVAS_H * .42);
+
+  // Divider
+  c.strokeStyle = hexToRGBA(d.c, .13);
+  c.lineWidth = 1;
+  c.beginPath();
+  c.moveTo(cx - 96, CANVAS_H * .48);
+  c.lineTo(cx + 96, CANVAS_H * .48);
+  c.stroke();
+
+  // Attribution
+  c.fillStyle = hexToRGBA(d.c, .28);
+  c.font = '300 15px "DM Mono"';
+  c.fillText("CHAIRMAN'S ADDRESS · " + d.l.toUpperCase(), cx, CANVAS_H * .53);
+}
+
+/* ── Demo page rendering via idle callback ── */
+function renderChunk(dl) {
+  while (PageStore.renderIdx < PageStore.total) {
+    if (PageStore.renderIdx < DEMO_PAGES.length) {
+      PageStore.pages[PageStore.renderIdx] = mkPage(PageStore.renderIdx);
+    }
+    PageStore.renderIdx++;
+    if (dl.timeRemaining() < 2 && PageStore.renderIdx < PageStore.total) {
+      requestIdleCallback(renderChunk);
+      return;
+    }
+  }
+  window._rdy && window._rdy();
+}
+const rIC = window.requestIdleCallback || (cb => setTimeout(() => cb({timeRemaining: () => 16}), 1));
+rIC(renderChunk);
 
 /* ═══════════════════════════════════════════════════════
    CONFIG — default PDF loaded on startup
-   Set to '' to show built-in demo pages instead
 ═══════════════════════════════════════════════════════ */
 const DEFAULT_PDF_URL = TURNGL_CONFIG.pdfUrl ?? '';
 
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const eio=t=>t<.5?2*t*t:-1+(4-2*t)*t;
+/* ═══════════════════════════════════════════════════════
+   Book3D — Three.js 3D book renderer
+═══════════════════════════════════════════════════════ */
+class Book3D {
+  constructor(cv) {
+    this.cv = cv;
+    this.SG = TURNGL_CONFIG.curlSegments ?? 32;
+    this._camTarget = {x: 0, y: 0};
+    this._camCurrent = {x: 0, y: 0};
+    this._cameraZ = DEFAULT_CAM_Z;
+    this._dark = true;
 
-class Book3D{
-  constructor(cv){
-    this.cv=cv; this.PW=1.65; this.PH=2.33; this.SG=TURNGL_CONFIG.curlSegments??32;
-    this._camT={x:0,y:0}; this._camC={x:0,y:0}; this._cZ=6.0;
-    this._dark=true;
-    this._rdr=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
-    this._rdr.setPixelRatio(Math.min(devicePixelRatio,2));
-    this._rdr.shadowMap.enabled=true;
-    this._rdr.shadowMap.type=THREE.PCFSoftShadowMap;
-    this._rdr.setClearColor(0,0);
-    this.sc=new THREE.Scene();
-    this.cam=new THREE.PerspectiveCamera(26,1,.1,100);
-    this.cam.position.set(0,0,this._cZ);
+    this._renderer = new THREE.WebGLRenderer({canvas: cv, antialias: true, alpha: true});
+    this._renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this._renderer.shadowMap.enabled = true;
+    this._renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this._renderer.setClearColor(0, 0);
+
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(26, 1, .1, 100);
+    this.camera.position.set(0, 0, this._cameraZ);
+
     this._buildLights();
     this._buildPages();
     this._buildFlip();
     this._loop();
   }
 
-  _buildLights(){
-    this._amb=new THREE.AmbientLight(0xffffff,.5);this.sc.add(this._amb);
-    const k=this._key=new THREE.DirectionalLight(0xfff8f0,.75);
-    k.position.set(1.5,3.5,4);k.castShadow=true;
-    k.shadow.mapSize.set(1024,1024);k.shadow.camera.left=-6;k.shadow.camera.right=6;
-    k.shadow.camera.top=5;k.shadow.camera.bottom=-5;k.shadow.radius=4;this.sc.add(k);
-    const f=new THREE.PointLight(0xe8f0ff,.25);f.position.set(-3,0,4);this.sc.add(f);
+  _buildLights() {
+    this._ambientLight = new THREE.AmbientLight(0xffffff, .5);
+    this.scene.add(this._ambientLight);
+
+    const k = this._keyLight = new THREE.DirectionalLight(0xfff8f0, .75);
+    k.position.set(1.5, 3.5, 4);
+    k.castShadow = true;
+    k.shadow.mapSize.set(1024, 1024);
+    k.shadow.camera.left = -6;
+    k.shadow.camera.right = 6;
+    k.shadow.camera.top = 5;
+    k.shadow.camera.bottom = -5;
+    k.shadow.radius = 4;
+    this.scene.add(k);
+
+    const f = new THREE.PointLight(0xe8f0ff, .25);
+    f.position.set(-3, 0, 4);
+    this.scene.add(f);
   }
 
-  _buildPages(){
-    const {PW,PH,sc}=this;
-    // left page
-    this.mL=new THREE.Mesh(new THREE.PlaneGeometry(PW,PH),this._mat(this._paper()));
-    this.mL.position.x=-PW/2;this.mL.receiveShadow=true;sc.add(this.mL);
-    // right page
-    this.mR=new THREE.Mesh(new THREE.PlaneGeometry(PW,PH),this._mat(this._paper()));
-    this.mR.position.x=PW/2;this.mR.receiveShadow=true;sc.add(this.mR);
-    // spine
-    const sp=new THREE.Mesh(new THREE.BoxGeometry(.04,PH+.02,.015),new THREE.MeshLambertMaterial({color:0x030202}));
-    sp.position.z=.005;sc.add(sp);
-    // shadow floor
-    const fl=new THREE.Mesh(new THREE.PlaneGeometry(10,8),new THREE.ShadowMaterial({opacity:.18}));
-    fl.receiveShadow=true;fl.position.z=-.06;sc.add(fl);
+  _buildPages() {
+    // Left page
+    this.meshLeft = new THREE.Mesh(
+      new THREE.PlaneGeometry(PAGE_W, PAGE_H),
+      this._mat(this._paper())
+    );
+    this.meshLeft.position.x = -PAGE_W / 2;
+    this.meshLeft.receiveShadow = true;
+    this.scene.add(this.meshLeft);
+
+    // Right page
+    this.meshRight = new THREE.Mesh(
+      new THREE.PlaneGeometry(PAGE_W, PAGE_H),
+      this._mat(this._paper())
+    );
+    this.meshRight.position.x = PAGE_W / 2;
+    this.meshRight.receiveShadow = true;
+    this.scene.add(this.meshRight);
+
+    // Spine
+    const sp = new THREE.Mesh(
+      new THREE.BoxGeometry(.04, PAGE_H + .02, .015),
+      new THREE.MeshLambertMaterial({color: 0x030202})
+    );
+    sp.position.z = .005;
+    this.scene.add(sp);
+
+    // Shadow floor
+    const fl = new THREE.Mesh(
+      new THREE.PlaneGeometry(10, 8),
+      new THREE.ShadowMaterial({opacity: .18})
+    );
+    fl.receiveShadow = true;
+    fl.position.z = -.06;
+    this.scene.add(fl);
   }
 
-  _buildFlip(){
-    const {PW,PH,SG,sc}=this;
-    const g=this.fg=new THREE.PlaneGeometry(PW,PH,SG,1);
-    const pos=g.attributes.position;
-    this._nx=new Float32Array(pos.count);
-    this._oy=new Float32Array(pos.count);
-    for(let i=0;i<pos.count;i++){this._nx[i]=pos.getX(i)/PW;this._oy[i]=pos.getY(i)}
-    // front face
-    this._mFF=this._mat(this._paper());
-    this.fF=new THREE.Mesh(g,this._mFF);this.fF.castShadow=true;this.fF.visible=false;sc.add(this.fF);
-    // back face (mirrored)
-    this._mFB=this._mat(this._paper(),true);
-    this.fB=new THREE.Mesh(g,this._mFB);this.fB.visible=false;sc.add(this.fB);
+  _buildFlip() {
+    const g = this.flipGeom = new THREE.PlaneGeometry(PAGE_W, PAGE_H, this.SG, 1);
+    const pos = g.attributes.position;
+    this._normX = new Float32Array(pos.count);
+    this._origY = new Float32Array(pos.count);
+    for (let i = 0; i < pos.count; i++) {
+      this._normX[i] = pos.getX(i) / PAGE_W;
+      this._origY[i] = pos.getY(i);
+    }
+
+    // Front face
+    this._flipFrontMat = this._mat(this._paper());
+    this.flipFront = new THREE.Mesh(g, this._flipFrontMat);
+    this.flipFront.castShadow = true;
+    this.flipFront.visible = false;
+    this.scene.add(this.flipFront);
+
+    // Back face (mirrored)
+    this._flipBackMat = this._mat(this._paper(), true);
+    this.flipBack = new THREE.Mesh(g, this._flipBackMat);
+    this.flipBack.visible = false;
+    this.scene.add(this.flipBack);
   }
 
   /* ─ Material helpers ─ */
-  _mat(canvas,back=false){
-    // KEY FIX: Do NOT set flipY=false. Default flipY=true is correct for canvas textures.
-    const t=new THREE.CanvasTexture(canvas);
-    if(back){
-      // KEY FIX: Flip texture horizontally to counter the BackSide UV mirror
-      t.wrapS=THREE.RepeatWrapping;t.repeat.x=-1;t.offset.x=1;
+  _mat(canvas, back = false) {
+    const t = new THREE.CanvasTexture(canvas);
+    if (back) {
+      t.wrapS = THREE.RepeatWrapping;
+      t.repeat.x = -1;
+      t.offset.x = 1;
     }
-    return new THREE.MeshLambertMaterial({map:t,side:back?THREE.BackSide:THREE.FrontSide});
+    return new THREE.MeshLambertMaterial({map: t, side: back ? THREE.BackSide : THREE.FrontSide});
   }
-  _setTex(mat,canvas){
-    if(mat.map)mat.map.dispose();
-    const t=new THREE.CanvasTexture(canvas);
-    if(mat.side===THREE.BackSide){t.wrapS=THREE.RepeatWrapping;t.repeat.x=-1;t.offset.x=1}
-    mat.map=t;mat.needsUpdate=true;
+
+  _setTex(mat, canvas) {
+    if (mat.map) mat.map.dispose();
+    const t = new THREE.CanvasTexture(canvas);
+    if (mat.side === THREE.BackSide) {
+      t.wrapS = THREE.RepeatWrapping;
+      t.repeat.x = -1;
+      t.offset.x = 1;
+    }
+    mat.map = t;
+    mat.needsUpdate = true;
   }
-  _paper(){
-    const cv=document.createElement('canvas');cv.width=4;cv.height=4;
-    const ctx=cv.getContext('2d');ctx.fillStyle=this._dark?'#0d0b08':'#d6d3cc';ctx.fillRect(0,0,4,4);return cv;
+
+  _paper() {
+    const cv = document.createElement('canvas');
+    cv.width = 4;
+    cv.height = 4;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = this._dark ? '#0d0b08' : '#d6d3cc';
+    ctx.fillRect(0, 0, 4, 4);
+    return cv;
   }
 
   /* ─ Spread: show explicit left/right page canvases ─ */
-  showSpread(li, ri, pages){
-    const p=this._paper();
-    this._setTex(this.mL.material, (li>=0 && pages[li]) ? pages[li] : p);
-    this._setTex(this.mR.material, (ri>=0 && pages[ri]) ? pages[ri] : p);
-    this.mL.visible=true; this.mR.visible=true;
+  showSpread(li, ri, pages) {
+    const p = this._paper();
+    this._setTex(this.meshLeft.material, (li >= 0 && pages[li]) ? pages[li] : p);
+    this._setTex(this.meshRight.material, (ri >= 0 && pages[ri]) ? pages[ri] : p);
+    this.meshLeft.visible = true;
+    this.meshRight.visible = true;
   }
 
   /* ─ Curl ─ */
-  curl(prog,dir){
-    const {PW,fg,_nx,_oy}=this,pos=fg.attributes.position,L=0.25;
-    for(let i=0;i<pos.count;i++){
-      const nx=_nx[i],t=dir==='fwd'?nx+.5:.5-nx,d=t*PW;
-      const vp=clamp(prog+(t-.5)*L,0,1),a=vp*Math.PI;
-      pos.setX(i,dir==='fwd'?d*Math.cos(a):-d*Math.cos(a));
-      pos.setZ(i,d*Math.sin(a));pos.setY(i,_oy[i]);
+  curl(prog, dir) {
+    const pos = this.flipGeom.attributes.position;
+    const L = 0.25;
+    const adjProg = prog * (1 + L) - L * 0.5;
+    for (let i = 0; i < pos.count; i++) {
+      const nx = this._normX[i];
+      const t = dir === 'fwd' ? nx + .5 : .5 - nx;
+      const d = t * PAGE_W;
+      const vp = clamp(adjProg + (t - .5) * L, 0, 1);
+      const a = vp * Math.PI;
+      pos.setX(i, dir === 'fwd' ? d * Math.cos(a) : -d * Math.cos(a));
+      pos.setZ(i, d * Math.sin(a));
+      pos.setY(i, this._origY[i]);
     }
-    pos.needsUpdate=true;fg.computeVertexNormals();
+    pos.needsUpdate = true;
+    this.flipGeom.computeVertexNormals();
   }
 
   /* ─ Flip prep/end ─ */
-  prep(dir,fCv,bCv){
-    this._setTex(this._mFF,fCv);this._setTex(this._mFB,bCv);
-    this.curl(0,dir);this.fF.visible=true;this.fB.visible=true;
-    if(dir==='fwd')this.mR.visible=false;else this.mL.visible=false;
+  prep(dir, fCv, bCv) {
+    this._setTex(this._flipFrontMat, fCv);
+    this._setTex(this._flipBackMat, bCv);
+    this.curl(0, dir);
+    this.flipFront.visible = true;
+    this.flipBack.visible = true;
+    if (dir === 'fwd') this.meshRight.visible = false;
+    else this.meshLeft.visible = false;
   }
-  end(){this.fF.visible=false;this.fB.visible=false;this.mL.visible=true;this.mR.visible=true}
+
+  end() {
+    this.flipFront.visible = false;
+    this.flipBack.visible = false;
+    this.meshLeft.visible = true;
+    this.meshRight.visible = true;
+  }
 
   /* ─ Animate ─ */
-  anim(from,to,dur,tick,done){
-    const t0=performance.now();
-    const f=()=>{const t=Math.min(1,(performance.now()-t0)/dur);tick(from+(to-from)*eio(t));t<1?requestAnimationFrame(f):done()};
+  anim(from, to, dur, tick, done) {
+    const t0 = performance.now();
+    const f = () => {
+      const t = Math.min(1, (performance.now() - t0) / dur);
+      tick(from + (to - from) * easeInOut(t));
+      t < 1 ? requestAnimationFrame(f) : done();
+    };
     requestAnimationFrame(f);
   }
 
   /* ─ Camera / theme ─ */
-  look(nx,ny){this._camT.x=ny*.14;this._camT.y=-nx*.16}
-  setZ(z){this._cZ=clamp(z,3,10)}
-  theme(dark){this._dark=dark;this._amb.intensity=dark?.5:.72;this._key.intensity=dark?.75:.55}
-
-  /* ─ Loop ─ */
-  _loop(){
-    requestAnimationFrame(()=>this._loop());
-    const{_camC:c,_camT:t}=this;
-    c.x+=(t.x-c.x)*.055;c.y+=(t.y-c.y)*.055;
-    this.cam.position.set(c.y*this._cZ*.12,c.x*this._cZ*.12,this._cZ);
-    this.cam.lookAt(0,0,0);this._rdr.render(this.sc,this.cam);
+  look(nx, ny) {
+    this._camTarget.x = ny * .14;
+    this._camTarget.y = -nx * .16;
   }
 
-  resize(w,h){this._rdr.setSize(w,h,false);this.cam.aspect=w/h;this.cam.updateProjectionMatrix()}
+  setZ(z) {
+    this._cameraZ = clamp(z, 3, 10);
+  }
+
+  theme(dark) {
+    this._dark = dark;
+    this._ambientLight.intensity = dark ? .5 : .72;
+    this._keyLight.intensity = dark ? .75 : .55;
+  }
+
+  /* ─ Loop (Phase 5E: pause when tab hidden) ─ */
+  _loop() {
+    requestAnimationFrame(() => this._loop());
+    if (document.hidden) return;
+    const c = this._camCurrent;
+    const t = this._camTarget;
+    c.x += (t.x - c.x) * CAM_LERP;
+    c.y += (t.y - c.y) * CAM_LERP;
+    this.camera.position.set(c.y * this._cameraZ * .12, c.x * this._cameraZ * .12, this._cameraZ);
+    this.camera.lookAt(0, 0, 0);
+    this._renderer.render(this.scene, this.camera);
+  }
+
+  resize(w, h) {
+    this._renderer.setSize(w, h, false);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
+
+  /* ─ Dispose (Phase 5B) ─ */
+  disposeTextures() {
+    [this.meshLeft, this.meshRight].forEach(m => {
+      if (m && m.material && m.material.map) m.material.map.dispose();
+    });
+    if (this._flipFrontMat && this._flipFrontMat.map) this._flipFrontMat.map.dispose();
+    if (this._flipBackMat && this._flipBackMat.map) this._flipBackMat.map.dispose();
+  }
 }
 
-/* ══════════════════════════════════════════════════════ */
-class Folio{
-  constructor(){
-    this.spread=0;           // current spread index (0-based)
-    this.totalSpreads=1;     // set after TOTAL known
-    this.anim=false;this._zoom=1;this._pan=false;this._dark=true;
-    this._drag=null;this._tT=null;
-    const sv=localStorage.getItem('folio-theme');
-    // localStorage overrides config (user manually toggled)
-    this._dark=sv ? sv==='dark' : (TURNGL_CONFIG.theme!=='light');
-    const h=document.documentElement;h.classList.toggle('dark',this._dark);h.classList.toggle('light',!this._dark);
+/* ═══════════════════════════════════════════════════════
+   Folio — main application controller
+═══════════════════════════════════════════════════════ */
+class Folio {
+  constructor() {
+    this.spread = 0;
+    this.totalSpreads = 1;
+    this.anim = false;
+    this._zoom = 1;
+    this._panelOpen = false;
+    this._dark = true;
+    this._drag = null;
+    this._toastTimer = null;
+    this._thumbIO = null;
+    this._pdfAbort = null;
+
+    // Theme: localStorage > config > prefers-color-scheme (Phase 2D)
+    const sv = localStorage.getItem('folio-theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    this._dark = sv ? sv === 'dark' : (TURNGL_CONFIG.theme === 'dark' || prefersDark);
+    const h = document.documentElement;
+    h.classList.toggle('dark', this._dark);
+    h.classList.toggle('light', !this._dark);
+
     // Apply title from config
-    if(TURNGL_CONFIG.title){
-      document.title=TURNGL_CONFIG.title;
-      document.getElementById('dt').textContent=TURNGL_CONFIG.title;
+    if (TURNGL_CONFIG.title) {
+      document.title = TURNGL_CONFIG.title;
+      this._$('dt').textContent = TURNGL_CONFIG.title;
     }
-    this.bk=new Book3D(document.getElementById('bookCanvas'));
+
+    // WebGL fallback (Phase 5D)
+    const testCanvas = document.createElement('canvas');
+    if (!testCanvas.getContext('webgl') && !testCanvas.getContext('experimental-webgl')) {
+      const stage = this._$('stage');
+      stage.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:32px;text-align:center">' +
+        '<div><p style="font-family:\'Cormorant Garamond\',serif;font-size:1.3rem;color:var(--tx);margin-bottom:12px">WebGL Desteklenmiyor</p>' +
+        '<p style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--tx2)">Bu tarayıcı WebGL desteklemiyor. Lütfen güncel bir tarayıcı kullanın.</p></div></div>';
+      return;
+    }
+
+    this.bk = new Book3D(this._$('bookCanvas'));
     this.bk.theme(this._dark);
     this._updateTotals();
-    this._bind();this._thumbs();this._ref();this._ui();this._rsz();
-    window._rdy=()=>{this._updateTotals();this._ref();this._rthumbs()};
+    this._bind();
+    this._thumbs();
+    this._ref();
+    this._ui();
+    this._resize();
+    window._rdy = () => { this._updateTotals(); this._ref(); this._rthumbs(); };
+
     // Auto-load default PDF
-    if(DEFAULT_PDF_URL) this._loadFromURL(DEFAULT_PDF_URL);
+    if (DEFAULT_PDF_URL) this._loadFromURL(DEFAULT_PDF_URL);
   }
 
-  _updateTotals(){
-    this.totalSpreads=Math.ceil(TOTAL/2);
-    this.spread=Math.min(this.spread,this.totalSpreads-1);
+  /* ─ Helper: get element by id ─ */
+  _$(id) {
+    return document.getElementById(id);
+  }
+
+  _updateTotals() {
+    this.totalSpreads = Math.ceil(PageStore.total / 2);
+    this.spread = Math.min(this.spread, this.totalSpreads - 1);
   }
 
   /* Left/right page indices for current spread */
-  get _li(){ return this.spread*2; }
-  get _ri(){ return this.spread*2+1; }
+  get _li() { return this.spread * 2; }
+  get _ri() { return this.spread * 2 + 1; }
 
-  _ref(){
-    this.bk.showSpread(this._li, this._ri, PAGES);
+  _ref() {
+    this.bk.showSpread(this._li, this._ri, PageStore.pages);
   }
 
-  _ui(){
-    const s=this.spread,e=this.totalSpreads-1;
-    // Show left page number (1-based) in input, total pages in /total
-    const leftPageNum = s*2+1;
-    document.getElementById('pi').value=leftPageNum;
-    document.getElementById('pt').textContent=TOTAL;
-    document.getElementById('pl').style.width=((s+1)/(e+1)*100)+'%';
-    document.getElementById('zp').textContent=Math.round(this._zoom*100)+'%';
-    ['b1','b2'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=s===0});
-    ['b3','b4'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=s===e});
-    document.querySelectorAll('.ti').forEach(el=>{
-      const pg=+el.dataset.i;
-      el.classList.toggle('act',pg===this._li||pg===this._ri);
+  _ui() {
+    const s = this.spread;
+    const e = this.totalSpreads - 1;
+    const leftPageNum = s * 2 + 1;
+    this._$('pi').value = leftPageNum;
+    this._$('pt').textContent = PageStore.total;
+    this._$('pl').style.width = ((s + 1) / (e + 1) * 100) + '%';
+    this._$('zp').textContent = Math.round(this._zoom * 100) + '%';
+    ['b1', 'b2'].forEach(id => { const el = this._$(id); if (el) el.disabled = s === 0; });
+    ['b3', 'b4'].forEach(id => { const el = this._$(id); if (el) el.disabled = s === e; });
+    document.querySelectorAll('.ti').forEach(el => {
+      const pg = +el.dataset.i;
+      el.classList.toggle('act', pg === this._li || pg === this._ri);
     });
-    const act=document.querySelector('.ti.act');if(act)act.scrollIntoView({block:'nearest',behavior:'smooth'});
+    const act = document.querySelector('.ti.act');
+    if (act) act.scrollIntoView({block: 'nearest', behavior: 'smooth'});
   }
 
-  fwd(){
-    if(this.anim||this.spread>=this.totalSpreads-1)return;this.anim=true;
-    // Right page (li+1) is front of flip
-    // Back of flip = left page of NEXT spread (li+2)
-    const frontCv = PAGES[this._ri] ?? this.bk._paper();
-    const backCv  = PAGES[this._li+2] ?? this.bk._paper();
-    this.bk.prep('fwd',frontCv,backCv);
-    this.bk.anim(0,1,TURNGL_CONFIG.flipDuration??780,p=>this.bk.curl(p,'fwd'),()=>{
-      this.spread++;this.bk.end();this._ref();this._ui();this.anim=false;
-    });
-  }
-  bwd(){
-    if(this.anim||this.spread<=0)return;this.anim=true;
-    const frontCv = PAGES[this._li] ?? this.bk._paper();
-    const backCv  = PAGES[this._ri-2] ?? this.bk._paper();
-    this.bk.prep('bwd',frontCv,backCv);
-    this.bk.anim(0,1,TURNGL_CONFIG.flipDuration??780,p=>this.bk.curl(p,'bwd'),()=>{
-      this.spread--;this.bk.end();this._ref();this._ui();this.anim=false;
+  fwd() {
+    if (this.anim || this.spread >= this.totalSpreads - 1) return;
+    this.anim = true;
+    const frontCv = PageStore.pages[this._ri] ?? this.bk._paper();
+    const backCv = PageStore.pages[this._li + 2] ?? this.bk._paper();
+    this.bk.prep('fwd', frontCv, backCv);
+    this.bk.anim(0, 1, TURNGL_CONFIG.flipDuration ?? 780, p => this.bk.curl(p, 'fwd'), () => {
+      this.spread++;
+      this.bk.end();
+      this._ref();
+      this._ui();
+      this.anim = false;
     });
   }
-  jump(pageIdx){
-    // pageIdx = 0-based page index → spread = floor(pageIdx/2)
-    const s=Math.max(0,Math.min(this.totalSpreads-1,Math.floor(pageIdx/2)));
-    if(s===this.spread||this.anim)return;
-    if(Math.abs(s-this.spread)===1){s>this.spread?this.fwd():this.bwd();return}
-    this.spread=s;this._ref();this._ui();this._toast('Sayfa '+(s*2+1)+'-'+(s*2+2));
+
+  bwd() {
+    if (this.anim || this.spread <= 0) return;
+    this.anim = true;
+    const frontCv = PageStore.pages[this._li] ?? this.bk._paper();
+    const backCv = PageStore.pages[this._ri - 2] ?? this.bk._paper();
+    this.bk.prep('bwd', frontCv, backCv);
+    this.bk.anim(0, 1, TURNGL_CONFIG.flipDuration ?? 780, p => this.bk.curl(p, 'bwd'), () => {
+      this.spread--;
+      this.bk.end();
+      this._ref();
+      this._ui();
+      this.anim = false;
+    });
   }
 
-  _ST=[.35,.5,.65,.75,.85,1,1.15,1.3,1.5,1.75,2,2.4];
-  setZ(z,s=false){this._zoom=clamp(parseFloat(z.toFixed(2)),.3,2.5);this.bk.setZ(6/this._zoom);document.getElementById('zp').textContent=Math.round(this._zoom*100)+'%';if(!s)this._toast(Math.round(this._zoom*100)+'%')}
-  stepZ(d){if(d>0){const n=this._ST.find(v=>v>this._zoom+.005);if(n)this.setZ(n)}else{const n=[...this._ST].reverse().find(v=>v<this._zoom-.005);if(n)this.setZ(n)}}
-  fitZ(){const st=document.getElementById('stage');this.setZ(clamp(st.clientHeight/500,.4,1.8))}
+  jump(pageIdx) {
+    const s = Math.max(0, Math.min(this.totalSpreads - 1, Math.floor(pageIdx / 2)));
+    if (s === this.spread || this.anim) return;
+    if (Math.abs(s - this.spread) === 1) {
+      s > this.spread ? this.fwd() : this.bwd();
+      return;
+    }
+    this.spread = s;
+    this._ref();
+    this._ui();
+    this._toast('Sayfa ' + (s * 2 + 1) + '-' + (s * 2 + 2));
+  }
 
-  _tgP(){this._pan=!this._pan;document.getElementById('panel').classList.toggle('open',this._pan);document.getElementById('stage').classList.toggle('po',this._pan);document.getElementById('tbar').classList.toggle('po',this._pan);document.getElementById('bp').classList.toggle('on',this._pan)}
-  _tgT(){this._dark=!this._dark;const h=document.documentElement;h.classList.add('ta');h.classList.toggle('dark',this._dark);h.classList.toggle('light',!this._dark);localStorage.setItem('folio-theme',this._dark?'dark':'light');setTimeout(()=>h.classList.remove('ta'),320);this.bk.theme(this._dark);this._toast(this._dark?'Dark Mode':'Light Mode')}
+  /* ─ Zoom ─ */
+  _ST = [.35, .5, .65, .75, .85, 1, 1.15, 1.3, 1.5, 1.75, 2, 2.4];
 
-  async _loadFromURL(url){
-    if(!url.trim())return;
-    document.getElementById('urlpop').classList.remove('show');
-    const name=url.split('/').pop().split('?')[0]||'document.pdf';
-    this._loadPDFDoc(async()=>{
-      // Fetch as ArrayBuffer — avoids the "Headers cannot be cloned" postMessage error
-      const res=await fetch(url);
-      if(!res.ok)throw new Error(`HTTP ${res.status} — ${res.statusText}`);
-      const data=await res.arrayBuffer();
-      return pdfjsLib.getDocument({data}).promise;
+  setZ(z, silent = false) {
+    this._zoom = clamp(parseFloat(z.toFixed(2)), .3, 2.5);
+    this.bk.setZ(DEFAULT_CAM_Z / this._zoom);
+    this._$('zp').textContent = Math.round(this._zoom * 100) + '%';
+    if (!silent) this._toast(Math.round(this._zoom * 100) + '%');
+  }
+
+  stepZ(d) {
+    if (d > 0) {
+      const n = this._ST.find(v => v > this._zoom + .005);
+      if (n) this.setZ(n);
+    } else {
+      const n = [...this._ST].reverse().find(v => v < this._zoom - .005);
+      if (n) this.setZ(n);
+    }
+  }
+
+  fitZ() {
+    const st = this._$('stage');
+    this.setZ(clamp(st.clientHeight / 500, .4, 1.8));
+  }
+
+  /* ─ Panel toggle ─ */
+  _togglePanel() {
+    this._panelOpen = !this._panelOpen;
+    this._$('panel').classList.toggle('open', this._panelOpen);
+    this._$('stage').classList.toggle('po', this._panelOpen);
+    this._$('tbar').classList.toggle('po', this._panelOpen);
+    this._$('bp').classList.toggle('on', this._panelOpen);
+  }
+
+  /* ─ Theme toggle ─ */
+  _toggleTheme() {
+    this._dark = !this._dark;
+    const h = document.documentElement;
+    h.classList.add('ta');
+    h.classList.toggle('dark', this._dark);
+    h.classList.toggle('light', !this._dark);
+    localStorage.setItem('folio-theme', this._dark ? 'dark' : 'light');
+    setTimeout(() => h.classList.remove('ta'), THEME_TRANS_MS);
+    this.bk.theme(this._dark);
+    this._toast(this._dark ? 'Dark Mode' : 'Light Mode');
+  }
+
+  /* ─ URL validation + loading (Phase 1D) ─ */
+  async _loadFromURL(url) {
+    if (!url.trim()) return;
+    try {
+      const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        this._toast('Only http/https URLs');
+        return;
+      }
+    } catch {
+      this._toast('Geçersiz URL');
+      return;
+    }
+    this._$('urlpop').classList.remove('show');
+    const name = url.split('/').pop().split('?')[0] || 'document.pdf';
+    this._loadPDFDoc(async (signal) => {
+      return pdfjsLib.getDocument({url}).promise;
     }, name);
   }
-  async _loadFile(file){
-    document.getElementById('urlpop').classList.remove('show');
-    this._loadPDFDoc(async()=>pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise, file.name);
+
+  async _loadFile(file) {
+    this._$('urlpop').classList.remove('show');
+    this._loadPDFDoc(async (signal) => pdfjsLib.getDocument({data: await file.arrayBuffer()}).promise, file.name);
   }
-  async _loadPDFDoc(getPromise, name){
-    const gi=id=>document.getElementById(id);
-    const ov=gi('lov'),lf=gi('lf'),lm=gi('lm');
+
+  /* ─ PDF loading with AbortController (Phase 5C) ─ */
+  async _loadPDFDoc(getPromise, name) {
+    // Abort any previous load
+    if (this._pdfAbort) this._pdfAbort.abort();
+    this._pdfAbort = new AbortController();
+    const signal = this._pdfAbort.signal;
+
+    const ov = this._$('lov');
+    const lf = this._$('lf');
+    const lm = this._$('lm');
     ov.classList.add('show');
-    try{
-      pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      lm.textContent='PDF ayrıştırılıyor…';lf.style.width='0%';
-      const pdf=await getPromise();
-      TOTAL=pdf.numPages;PAGES=new Array(TOTAL).fill(null);
-      gi('dt').textContent=name.replace(/\.pdf$/i,'');
-      this.spread=0;this._updateTotals();
-      for(let i=1;i<=TOTAL;i++){
-        const pg=await pdf.getPage(i),vp=pg.getViewport({scale:TURNGL_CONFIG.pdfScale??2.2});
-        const cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;
-        await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
-        PAGES[i-1]=cv;lf.style.width=Math.round(i/TOTAL*100)+'%';lm.textContent=i+' / '+TOTAL+' sayfa';
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      lm.textContent = 'PDF ayrıştırılıyor…';
+      lf.style.width = '0%';
+
+      const pdf = await getPromise(signal);
+      if (signal.aborted) return;
+
+      // Dispose existing textures before replacing pages (Phase 5B)
+      this.bk.disposeTextures();
+
+      PageStore.total = pdf.numPages;
+      PageStore.pages = new Array(PageStore.total).fill(null);
+      this._$('dt').textContent = name.replace(/\.pdf$/i, '');
+      this.spread = 0;
+      this._updateTotals();
+
+      for (let i = 1; i <= PageStore.total; i++) {
+        if (signal.aborted) return;
+        const pg = await pdf.getPage(i);
+        const vp = pg.getViewport({scale: TURNGL_CONFIG.pdfScale ?? 2.2});
+        const cv = document.createElement('canvas');
+        cv.width = vp.width;
+        cv.height = vp.height;
+        await pg.render({canvasContext: cv.getContext('2d'), viewport: vp}).promise;
+        PageStore.pages[i - 1] = cv;
+        lf.style.width = Math.round(i / PageStore.total * 100) + '%';
+        lm.textContent = i + ' / ' + PageStore.total + ' sayfa';
       }
-      this._thumbs();this._ref();this._ui();
-    }catch(e){lm.textContent='Hata: '+e.message;console.error(e)}
-    finally{setTimeout(()=>ov.classList.remove('show'),600)}
-  }
 
-  _thumbs(){
-    const g=document.getElementById('tg');g.innerHTML='';
-    document.getElementById('pc').textContent=TOTAL;
-    for(let i=0;i<TOTAL;i++){
-      const it=document.createElement('div');it.className='ti'+(i===0?' act':'');it.dataset.i=i;
-      const cv=document.createElement('canvas');cv.width=78;cv.height=110;
-      const n=document.createElement('div');n.className='tn';n.textContent=i+1;
-      it.append(cv,n);g.append(it);
+      this._thumbs();
+      this._ref();
+      this._ui();
+    } catch (e) {
+      if (signal.aborted) return;
+      lm.textContent = 'Hata: ' + e.message;
+      console.error(e);
+      ov.style.cursor = 'pointer';
+      ov.addEventListener('click', () => {
+        ov.classList.remove('show');
+        ov.style.cursor = '';
+      }, {once: true});
+      return;
     }
-    const io=new IntersectionObserver(es=>{es.forEach(e=>{if(!e.isIntersecting)return;const it=e.target;if(it.classList.contains('rend'))return;const idx=+it.dataset.i;const paint=()=>{if(PAGES[idx]){it.querySelector('canvas').getContext('2d').drawImage(PAGES[idx],0,0,78,110);it.classList.add('rend');io.unobserve(it)}else setTimeout(paint,80)};paint()})},{root:g,rootMargin:'40px'});
-    g.querySelectorAll('.ti').forEach(el=>io.observe(el));
-    g.addEventListener('click',e=>{const t=e.target.closest('.ti');if(t)this.jump(+t.dataset.i)});
+    setTimeout(() => ov.classList.remove('show'), 600);
   }
-  _rthumbs(){document.querySelectorAll('.ti.rend').forEach(it=>{const idx=+it.dataset.i,cv=it.querySelector('canvas');if(PAGES[idx])cv.getContext('2d').drawImage(PAGES[idx],0,0,78,110)});this._ref()}
-  _toast(msg){clearTimeout(this._tT);const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');this._tT=setTimeout(()=>t.classList.remove('show'),950)}
-  _rsz(){const st=document.getElementById('stage');this.bk.resize(st.clientWidth,st.clientHeight)}
 
-  _bind(){
-    const $=id=>document.getElementById(id),on=(id,ev,fn)=>{const el=$(id);if(el)el.addEventListener(ev,fn)};
-    on('b1','click',()=>this.jump(0));on('b2','click',()=>this.bwd());
-    on('b3','click',()=>this.fwd());on('b4','click',()=>this.jump((this.totalSpreads-1)*2));
-    on('bzo','click',()=>this.stepZ(-1));on('bzi','click',()=>this.stepZ(+1));
-    on('bwf','click',()=>this.fitZ());on('zp','click',()=>this.setZ(1));
-    on('bp','click',()=>this._tgP());on('tt','click',()=>this._tgT());
-    on('bl','click',e=>{
-      e.stopPropagation();
-      const pop=$('urlpop');
-      const show=!pop.classList.contains('show');
-      pop.classList.toggle('show',show);
-      if(show){
-        const urlin=$('urlin');
-        if(!urlin.value&&TURNGL_CONFIG.pdfUrl)urlin.value=TURNGL_CONFIG.pdfUrl;
-        setTimeout(()=>urlin.focus(),50);
+  /* ─ Thumbnails (Phase 5A: disconnect observer on re-thumb) ─ */
+  _thumbs() {
+    if (this._thumbIO) this._thumbIO.disconnect();
+
+    const g = this._$('tg');
+    g.innerHTML = '';
+    this._$('pc').textContent = PageStore.total;
+
+    for (let i = 0; i < PageStore.total; i++) {
+      const it = document.createElement('div');
+      it.className = 'ti' + (i === 0 ? ' act' : '');
+      it.dataset.i = i;
+      const cv = document.createElement('canvas');
+      cv.width = 78;
+      cv.height = 110;
+      const n = document.createElement('div');
+      n.className = 'tn';
+      n.textContent = i + 1;
+      it.append(cv, n);
+      g.append(it);
+    }
+
+    this._thumbIO = new IntersectionObserver(es => {
+      es.forEach(e => {
+        if (!e.isIntersecting) return;
+        const it = e.target;
+        if (it.classList.contains('rend')) return;
+        const idx = +it.dataset.i;
+        const paint = () => {
+          if (PageStore.pages[idx]) {
+            it.querySelector('canvas').getContext('2d').drawImage(PageStore.pages[idx], 0, 0, 78, 110);
+            it.classList.add('rend');
+            this._thumbIO.unobserve(it);
+          } else {
+            setTimeout(paint, 80);
+          }
+        };
+        paint();
+      });
+    }, {root: g, rootMargin: '40px'});
+
+    g.querySelectorAll('.ti').forEach(el => this._thumbIO.observe(el));
+    g.addEventListener('click', e => {
+      const t = e.target.closest('.ti');
+      if (t) this.jump(+t.dataset.i);
+    });
+  }
+
+  _rthumbs() {
+    document.querySelectorAll('.ti.rend').forEach(it => {
+      const idx = +it.dataset.i;
+      const cv = it.querySelector('canvas');
+      if (PageStore.pages[idx]) {
+        cv.getContext('2d').drawImage(PageStore.pages[idx], 0, 0, 78, 110);
       }
     });
-    document.addEventListener('click',e=>{if(!e.target.closest('#urlpop')&&!e.target.closest('#bl'))$('urlpop').classList.remove('show')});
-    on('urlgo','click',()=>this._loadFromURL($('urlin').value));
-    $('urlin').addEventListener('keydown',e=>{if(e.key==='Enter')this._loadFromURL($('urlin').value)});
-    on('filego','click',()=>$('pf').click());
-    on('pf','change',e=>{if(e.target.files[0])this._loadFile(e.target.files[0])});
-    on('bfs','click',()=>{!document.fullscreenElement?document.documentElement.requestFullscreen():document.exitFullscreen()});
-    document.addEventListener('fullscreenchange',()=>{$('bfs').classList.toggle('on',!!document.fullscreenElement);setTimeout(()=>this._rsz(),200)});
-    const pi=$('pi');
-    pi.addEventListener('keydown',e=>{
-      if(e.key==='Enter'){
-        const v=parseInt(pi.value);
-        if(!isNaN(v))this.jump(v-1); // v is page number → 0-based index → spread = floor((v-1)/2)
+    this._ref();
+  }
+
+  _toast(msg) {
+    clearTimeout(this._toastTimer);
+    const t = this._$('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    this._toastTimer = setTimeout(() => t.classList.remove('show'), TOAST_MS);
+  }
+
+  _resize() {
+    const st = this._$('stage');
+    this.bk.resize(st.clientWidth, st.clientHeight);
+  }
+
+  /* ─ Bind: split into sub-methods (Phase 4B) ─ */
+  _bind() {
+    this._bindNav();
+    this._bindZoom();
+    this._bindDrag();
+    this._bindKeys();
+    this._bindUI();
+    new ResizeObserver(() => this._resize()).observe(this._$('stage'));
+  }
+
+  _bindNav() {
+    this._$('b1').addEventListener('click', () => this.jump(0));
+    this._$('b2').addEventListener('click', () => this.bwd());
+    this._$('b3').addEventListener('click', () => this.fwd());
+    this._$('b4').addEventListener('click', () => this.jump((this.totalSpreads - 1) * 2));
+
+    const pi = this._$('pi');
+    pi.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const v = parseInt(pi.value);
+        if (!isNaN(v)) this.jump(v - 1);
         pi.blur();
       }
-      if(e.key==='Escape')pi.blur();
+      if (e.key === 'Escape') pi.blur();
     });
-    pi.addEventListener('focus',()=>pi.select());
-    pi.addEventListener('blur',()=>{pi.value=this.spread*2+1});
-    $('stage').addEventListener('wheel',e=>{e.preventDefault();this.stepZ(e.deltaY<0?1:-1)},{passive:false});
+    pi.addEventListener('focus', () => pi.select());
+    pi.addEventListener('blur', () => { pi.value = this.spread * 2 + 1; });
+  }
 
-    const cv=$('bookCanvas');
-    let drag=false;
-    const gx=e=>{const r=cv.getBoundingClientRect();return((e.touches?e.touches[0].clientX:e.clientX)-r.left)/r.width-.5};
-    const gy=e=>{const r=cv.getBoundingClientRect();return((e.touches?e.touches[0].clientY:e.clientY)-r.top)/r.height-.5};
+  _bindZoom() {
+    this._$('bzo').addEventListener('click', () => this.stepZ(-1));
+    this._$('bzi').addEventListener('click', () => this.stepZ(+1));
+    this._$('bwf').addEventListener('click', () => this.fitZ());
+    this._$('zp').addEventListener('click', () => this.setZ(1));
+    this._$('stage').addEventListener('wheel', e => {
+      e.preventDefault();
+      this.stepZ(e.deltaY < 0 ? 1 : -1);
+    }, {passive: false});
+  }
 
-    cv.addEventListener('pointerdown',e=>{
-      if(this.anim)return;const x=gx(e),dir=x>0?'fwd':'bwd';
-      if(dir==='fwd'&&this.spread>=this.totalSpreads-1)return;
-      if(dir==='bwd'&&this.spread<=0)return;
-      drag=true;
-      let f,b;
-      if(dir==='fwd'){
-        f=PAGES[this._ri]??this.bk._paper();
-        b=PAGES[this._li+2]??this.bk._paper();
-      }else{
-        f=PAGES[this._li]??this.bk._paper();
-        b=PAGES[this._ri-2]??this.bk._paper();
+  _bindDrag() {
+    const cv = this._$('bookCanvas');
+    let drag = false;
+
+    const getPointerX = e => {
+      const r = cv.getBoundingClientRect();
+      return ((e.touches ? e.touches[0].clientX : e.clientX) - r.left) / r.width - .5;
+    };
+    const getPointerY = e => {
+      const r = cv.getBoundingClientRect();
+      return ((e.touches ? e.touches[0].clientY : e.clientY) - r.top) / r.height - .5;
+    };
+
+    cv.addEventListener('pointerdown', e => {
+      if (this.anim) return;
+      const x = getPointerX(e);
+      const dir = x > 0 ? 'fwd' : 'bwd';
+      if (dir === 'fwd' && this.spread >= this.totalSpreads - 1) return;
+      if (dir === 'bwd' && this.spread <= 0) return;
+      drag = true;
+      let f, b;
+      if (dir === 'fwd') {
+        f = PageStore.pages[this._ri] ?? this.bk._paper();
+        b = PageStore.pages[this._li + 2] ?? this.bk._paper();
+      } else {
+        f = PageStore.pages[this._li] ?? this.bk._paper();
+        b = PageStore.pages[this._ri - 2] ?? this.bk._paper();
       }
-      this.bk.prep(dir,f,b);this._drag={dir,sx:x,prog:0,lx:x,vel:0};
-      cv.classList.add('grabbing');cv.setPointerCapture(e.pointerId);e.preventDefault();
-    },{passive:false});
+      this.bk.prep(dir, f, b);
+      this._drag = {dir, sx: x, prog: 0, lx: x, vel: 0};
+      cv.classList.add('grabbing');
+      cv.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    }, {passive: false});
 
-    window.addEventListener('pointermove',e=>{
-      if(!drag||!this._drag){this.bk.look(gx(e),gy(e));return}
-      const d=this._drag,x=gx(e),raw=d.dir==='fwd'?(d.sx-x)*2.2:(x-d.sx)*2.2;
-      const p=clamp(raw,0,1);d.vel=p-d.prog;d.prog=p;d.lx=x;this.bk.curl(p,d.dir);
+    window.addEventListener('pointermove', e => {
+      if (!drag || !this._drag) {
+        this.bk.look(getPointerX(e), getPointerY(e));
+        return;
+      }
+      const d = this._drag;
+      const x = getPointerX(e);
+      const raw = d.dir === 'fwd' ? (d.sx - x) * DRAG_SENS : (x - d.sx) * DRAG_SENS;
+      const p = clamp(raw, 0, 1);
+      d.vel = p - d.prog;
+      d.prog = p;
+      d.lx = x;
+      this.bk.curl(p, d.dir);
     });
 
-    window.addEventListener('pointerup',()=>{
-      if(!drag||!this._drag)return;
-      drag=false;cv.classList.remove('grabbing');
-      const d=this._drag;this._drag=null;
-      const thr=d.vel>0.018?0.12:0.38;
-      if(d.prog>thr){
-        this.anim=true;const rem=1-d.prog;
-        this.bk.anim(d.prog,1,Math.max(100,rem*550),p=>this.bk.curl(p,d.dir),()=>{
-          if(d.dir==='fwd')this.spread++;else this.spread--;
-          this.bk.end();this._ref();this._ui();this.anim=false;
+    window.addEventListener('pointerup', () => {
+      if (!drag || !this._drag) return;
+      drag = false;
+      cv.classList.remove('grabbing');
+      const d = this._drag;
+      this._drag = null;
+      const thr = d.vel > VEL_THRESH ? FLIP_COMMIT_FAST : FLIP_COMMIT_SLOW;
+      if (d.prog > thr) {
+        this.anim = true;
+        const rem = 1 - d.prog;
+        this.bk.anim(d.prog, 1, Math.max(100, rem * 550), p => this.bk.curl(p, d.dir), () => {
+          if (d.dir === 'fwd') this.spread++;
+          else this.spread--;
+          this.bk.end();
+          this._ref();
+          this._ui();
+          this.anim = false;
         });
-      }else{this.bk.anim(d.prog,0,d.prog*400+80,p=>this.bk.curl(p,d.dir),()=>{this.bk.end();this._ref()})}
-    });
-
-    cv.addEventListener('touchstart',e=>{
-      if(this.anim)return;const x=gx(e),dir=x>0?'fwd':'bwd';
-      if(dir==='fwd'&&this.spread>=this.totalSpreads-1)return;
-      if(dir==='bwd'&&this.spread<=0)return;
-      drag=true;let f,b;
-      if(dir==='fwd'){f=PAGES[this._ri]??this.bk._paper();b=PAGES[this._li+2]??this.bk._paper();}
-      else{f=PAGES[this._li]??this.bk._paper();b=PAGES[this._ri-2]??this.bk._paper();}
-      this.bk.prep(dir,f,b);this._drag={dir,sx:x,prog:0,lx:x,vel:0};e.preventDefault();
-    },{passive:false});
-    window.addEventListener('touchmove',e=>{if(!drag||!this._drag)return;const d=this._drag,x=gx(e),raw=d.dir==='fwd'?(d.sx-x)*2.2:(x-d.sx)*2.2;const p=clamp(raw,0,1);d.vel=p-d.prog;d.prog=p;d.lx=x;this.bk.curl(p,d.dir);e.preventDefault()},{passive:false});
-    window.addEventListener('touchend',()=>{
-      if(!drag||!this._drag)return;drag=false;const d=this._drag;this._drag=null;
-      const thr=d.vel>0.018?0.12:0.38;
-      if(d.prog>thr){this.anim=true;this.bk.anim(d.prog,1,Math.max(100,(1-d.prog)*550),p=>this.bk.curl(p,d.dir),()=>{
-        if(d.dir==='fwd')this.spread++;else this.spread--;this.bk.end();this._ref();this._ui();this.anim=false;
-      })}else{this.bk.anim(d.prog,0,d.prog*400+80,p=>this.bk.curl(p,d.dir),()=>{this.bk.end();this._ref();})}
-    });
-
-    document.addEventListener('keydown',e=>{
-      if(e.target.tagName==='INPUT')return;
-      switch(e.key){
-        case'ArrowRight':case'ArrowDown':this.fwd();break;case'ArrowLeft':case'ArrowUp':this.bwd();break;
-        case'+':case'=':this.stepZ(+1);break;case'-':this.stepZ(-1);break;
-        case'w':case'W':this.fitZ();break;case'z':case'Z':this.setZ(1);break;
-        case't':case'T':this._tgP();break;case'l':case'L':this._tgT();break;
-        case'f':case'F':$('bfs').click();break;case'?':$('bkb').click();break;
-        case'Home':this.jump(0);break;case'End':this.jump((this.totalSpreads-1)*2);break;
-        case'Escape':$('kbm').classList.remove('open');if(document.fullscreenElement)document.exitFullscreen();break;
+      } else {
+        this.bk.anim(d.prog, 0, d.prog * 400 + 80, p => this.bk.curl(p, d.dir), () => {
+          this.bk.end();
+          this._ref();
+        });
       }
     });
-    on('bkb','click',()=>$('kbm').classList.add('open'));
-    on('kbc','click',()=>$('kbm').classList.remove('open'));
-    $('kbm').addEventListener('click',e=>{if(e.target===$('kbm'))$('kbm').classList.remove('open')});
-    new ResizeObserver(()=>this._rsz()).observe($('stage'));
+  }
+
+  _bindKeys() {
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT') return;
+      switch (e.key) {
+        case 'ArrowRight': case 'ArrowDown': this.fwd(); break;
+        case 'ArrowLeft': case 'ArrowUp': this.bwd(); break;
+        case '+': case '=': this.stepZ(+1); break;
+        case '-': this.stepZ(-1); break;
+        case 'w': case 'W': this.fitZ(); break;
+        case 'z': case 'Z': this.setZ(1); break;
+        case 't': case 'T': this._togglePanel(); break;
+        case 'l': case 'L': this._toggleTheme(); break;
+        case 'f': case 'F': this._$('bfs').click(); break;
+        case '?': this._$('bkb').click(); break;
+        case 'Home': this.jump(0); break;
+        case 'End': this.jump((this.totalSpreads - 1) * 2); break;
+        case 'Escape':
+          this._$('kbm').classList.remove('open');
+          if (document.fullscreenElement) document.exitFullscreen();
+          break;
+      }
+    });
+  }
+
+  _bindUI() {
+    // Panel & theme toggles
+    this._$('bp').addEventListener('click', () => this._togglePanel());
+    this._$('tt').addEventListener('click', () => this._toggleTheme());
+
+    // URL/File popover
+    this._$('bl').addEventListener('click', e => {
+      e.stopPropagation();
+      const pop = this._$('urlpop');
+      const show = !pop.classList.contains('show');
+      pop.classList.toggle('show', show);
+      if (show) {
+        const urlin = this._$('urlin');
+        if (!urlin.value && TURNGL_CONFIG.pdfUrl) urlin.value = TURNGL_CONFIG.pdfUrl;
+        setTimeout(() => urlin.focus(), 50);
+      }
+    });
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#urlpop') && !e.target.closest('#bl')) {
+        this._$('urlpop').classList.remove('show');
+      }
+    });
+    this._$('urlgo').addEventListener('click', () => this._loadFromURL(this._$('urlin').value));
+    this._$('urlin').addEventListener('keydown', e => {
+      if (e.key === 'Enter') this._loadFromURL(this._$('urlin').value);
+    });
+    this._$('filego').addEventListener('click', () => this._$('pf').click());
+    this._$('pf').addEventListener('change', e => {
+      if (e.target.files[0]) this._loadFile(e.target.files[0]);
+    });
+
+    // Fullscreen
+    this._$('bfs').addEventListener('click', () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    });
+    document.addEventListener('fullscreenchange', () => {
+      this._$('bfs').classList.toggle('on', !!document.fullscreenElement);
+      setTimeout(() => this._resize(), 200);
+    });
+
+    // Keyboard shortcuts modal with focus trap (Phase 2F)
+    this._$('bkb').addEventListener('click', () => {
+      this._prevFocus = document.activeElement;
+      this._$('kbm').classList.add('open');
+      this._$('kbc').focus();
+    });
+    this._$('kbc').addEventListener('click', () => this._closeKbModal());
+    this._$('kbm').addEventListener('click', e => {
+      if (e.target === this._$('kbm')) this._closeKbModal();
+    });
+    this._$('kbm').addEventListener('keydown', e => {
+      if (e.key === 'Tab') {
+        const modal = this._$('kbm').querySelector('.kbc');
+        const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+        } else {
+          if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      }
+    });
+  }
+
+  _closeKbModal() {
+    this._$('kbm').classList.remove('open');
+    if (this._prevFocus) this._prevFocus.focus();
   }
 }
-window.addEventListener('DOMContentLoaded',()=>{window._f=new Folio()});
+
+window.addEventListener('DOMContentLoaded', () => { window._f = new Folio(); });
 </script>
 </body>
 </html>

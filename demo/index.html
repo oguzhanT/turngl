@@ -1,60 +1,362 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>turngl demo</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #0f0e0d; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 16px; font-family: system-ui; }
-  turn-gl { width: min(90vw, 900px); height: min(80vh, 640px); border-radius: 4px; }
-  .controls { display: flex; gap: 8px; }
-  button { background: rgba(255,255,255,.08); color: #eee; border: 1px solid rgba(255,255,255,.15); padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-  button:hover { background: rgba(255,255,255,.14); }
-  label { color: rgba(255,255,255,.4); font-size: 12px; font-family: monospace; }
-  input[type=text] { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.15); color: #eee; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-family: monospace; width: 340px; }
-  .row { display: flex; gap: 8px; align-items: center; }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js"
+  }
+}
+</script>
+<style>
+:root{
+  --bg:#0f0e0d;--sf:#1a1917;--sf2:#242220;
+  --bd:rgba(255,255,255,.08);--bd2:rgba(255,255,255,.15);
+  --tx:#edeae3;--tx2:rgba(237,234,227,.5);--tx3:rgba(237,234,227,.24);
+  --bar:rgba(12,11,10,.93);--ov:rgba(10,9,8,.84);
+  --shb:rgba(0,0,0,.4);--scr:rgba(255,255,255,.1);
+}
+html.light{
+  --bg:#f0eeea;--sf:#fff;--sf2:#e8e6e1;
+  --bd:rgba(0,0,0,.09);--bd2:rgba(0,0,0,.18);
+  --tx:#1c1a17;--tx2:rgba(28,26,23,.5);--tx3:rgba(28,26,23,.24);
+  --bar:rgba(255,255,255,.94);--ov:rgba(240,238,234,.88);
+  --shb:rgba(0,0,0,.1);--scr:rgba(0,0,0,.12);
+}
+html.ta *:not(canvas){transition:background-color .28s,border-color .28s,color .28s,box-shadow .28s !important}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;z-index:1;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.68' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='.045'/%3E%3C/svg%3E");
+  opacity:.6;mix-blend-mode:overlay}
+
+/* ── Topbar ── */
+#topbar{position:fixed;top:0;left:0;right:0;z-index:90;height:44px;background:var(--bar);border-bottom:1px solid var(--bd);backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);display:flex;align-items:center;padding:0 16px;gap:12px}
+#pl{position:absolute;bottom:0;left:0;height:1.5px;background:var(--tx2);width:0%;transition:width .4s}
+#dt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:.85rem;color:var(--tx2)}
+
+/* ── Stage ── */
+#stage{position:absolute;inset:44px 0 76px;overflow:hidden;background:var(--bg)}
+turn-gl{width:100%;height:100%;display:block}
+
+/* ── Bottom toolbar ── */
+#tbar{position:fixed;bottom:16px;left:50%;z-index:90;transform:translateX(-50%);height:52px;background:var(--bar);border:1px solid var(--bd2);border-radius:999px;backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);display:flex;align-items:center;padding:0 6px;gap:2px;box-shadow:0 8px 24px var(--shb),0 1px 0 var(--bd) inset;white-space:nowrap}
+.sep{width:1px;height:22px;background:var(--bd);flex-shrink:0;margin:0 4px}
+
+/* ── Toolbar buttons ── */
+.tb{height:38px;min-width:36px;padding:0 9px;border-radius:999px;border:1px solid transparent;background:transparent;color:var(--tx3);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:5px;transition:background .14s,border-color .14s,color .14s,transform .08s;flex-shrink:0;outline:none;user-select:none;font-family:'DM Sans',sans-serif}
+.tb:hover:not(:disabled){background:var(--sf2);border-color:var(--bd2);color:var(--tx)}
+.tb:active:not(:disabled){transform:scale(.93)}
+.tb:disabled{opacity:.18;cursor:not-allowed}
+.tb.on{background:var(--sf2);border-color:var(--bd2);color:var(--tx)}
+.tb svg{width:13px;height:13px;flex-shrink:0;stroke-width:1.5}
+.tb:focus-visible{outline:2px solid var(--tx2);outline-offset:2px}
+
+/* ── Small icon buttons (topbar) ── */
+.ib{height:28px;min-width:28px;padding:0 6px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--tx3);display:inline-flex;align-items:center;justify-content:center;gap:5px;font-size:11px;cursor:pointer;transition:background .14s,border-color .14s,color .14s;flex-shrink:0;outline:none;user-select:none;font-family:'DM Sans',sans-serif}
+.ib:hover{background:var(--sf2);border-color:var(--bd2);color:var(--tx)}
+.ib svg{width:13px;height:13px;stroke-width:1.4}
+.ib:focus-visible{outline:2px solid var(--tx2);outline-offset:2px}
+
+/* ── Page input pill ── */
+.pb{height:36px;padding:0 11px;border-radius:999px;background:var(--sf2);border:1px solid var(--bd2);display:flex;align-items:center;gap:5px}
+#pi{width:26px;background:transparent;border:none;outline:none;color:var(--tx);font-family:'DM Mono',monospace;font-size:13px;font-weight:300;text-align:center;-moz-appearance:textfield;cursor:text}
+#pi::-webkit-inner-spin-button,#pi::-webkit-outer-spin-button{-webkit-appearance:none}
+#pi:focus-visible{outline:2px solid var(--tx2);outline-offset:2px}
+#ps{color:var(--tx3);font-size:11px;font-family:'DM Mono',monospace}
+#pt{color:var(--tx2);font-family:'DM Mono',monospace;font-size:13px;font-weight:300}
+
+/* ── Zoom pill ── */
+#zp{height:36px;min-width:52px;padding:0 10px;border-radius:999px;background:var(--sf2);border:1px solid var(--bd);color:var(--tx2);font-family:'DM Mono',monospace;font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:border-color .14s,color .14s;user-select:none}
+#zp:hover{border-color:var(--bd2);color:var(--tx)}
+
+/* ── Theme toggle ── */
+#tt{position:relative;overflow:hidden;width:32px;height:28px}
+#tt .is,#tt .im{position:absolute;top:50%;left:50%;transition:opacity .22s,transform .22s}
+html.dark  #tt .is{opacity:1;transform:translate(-50%,-50%) rotate(0deg)}
+html.dark  #tt .im{opacity:0;transform:translate(-50%,-50%) rotate(30deg)}
+html.light #tt .is{opacity:0;transform:translate(-50%,-50%) rotate(-30deg)}
+html.light #tt .im{opacity:1;transform:translate(-50%,-50%) rotate(0deg)}
+
+/* ── URL popover ── */
+#urlpop{position:fixed;top:52px;right:16px;z-index:200;
+  background:var(--sf);border:1px solid var(--bd2);border-radius:10px;
+  padding:10px;display:none;flex-direction:column;gap:8px;width:320px;
+  box-shadow:0 8px 32px var(--shb);backdrop-filter:blur(16px)}
+#urlpop.show{display:flex}
+#urlin{background:var(--sf2);border:1px solid var(--bd);border-radius:6px;
+  color:var(--tx);font-family:'DM Mono',monospace;font-size:11px;
+  padding:7px 10px;outline:none;width:100%;transition:border-color .14s}
+#urlin:focus{border-color:var(--bd2)}
+#urlin::placeholder{color:var(--tx3)}
+.urldiv{display:flex;gap:6px;align-items:center}
+.urldiv span{font-size:10px;color:var(--tx3);font-family:'DM Mono',monospace;white-space:nowrap}
+
+/* ── Toast ── */
+#toast{position:fixed;bottom:82px;left:50%;z-index:300;transform:translate3d(-50%,8px,0);background:var(--sf);border:1px solid var(--bd2);color:var(--tx2);font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.1em;padding:6px 14px;border-radius:999px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap;backdrop-filter:blur(10px);box-shadow:0 4px 16px var(--shb)}
+#toast.show{opacity:1;transform:translate3d(-50%,0,0)}
+
+/* ── Keyboard modal ── */
+#kbm{position:fixed;inset:0;z-index:400;background:var(--ov);backdrop-filter:blur(18px);display:none;align-items:center;justify-content:center}
+#kbm.open{display:flex}
+.kbc{background:var(--sf);border:1px solid var(--bd2);border-radius:12px;padding:28px 32px;width:340px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.kbg{display:grid;grid-template-columns:auto 1fr;gap:8px 20px;align-items:center}
+kbd{font-family:'DM Mono',monospace;font-size:10px;color:var(--tx);background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:3px 7px;white-space:nowrap;display:inline-block}
+.kbl{font-size:12px;color:var(--tx2);line-height:1.4}
+
+/* ── Mobile ── */
+@media(pointer:coarse){.tb{min-width:44px;min-height:44px}.ib{min-width:44px;min-height:44px}}
+@media(max-width:560px){#tbar{overflow-x:auto;max-width:calc(100vw - 32px);scrollbar-width:none}#tbar::-webkit-scrollbar{display:none}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
 </head>
 <body>
 
-<div class="row">
-  <label>PDF URL</label>
-  <input type="text" id="urlInput" value="https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf">
-  <button onclick="loadURL()">Load</button>
+<header id="topbar">
+  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;user-select:none">
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" style="color:var(--tx2)" stroke-width="1.25">
+      <rect x="2" y="1.5" width="11" height="16" rx="1.5"/><rect x="7" y="1.5" width="11" height="16" rx="1.5" fill="rgba(127,127,127,.1)"/>
+      <line x1="9.5" y1="6.5" x2="15.5" y2="6.5"/><line x1="9.5" y1="10" x2="15.5" y2="10"/><line x1="9.5" y1="13.5" x2="13" y2="13.5"/>
+    </svg>
+    <span style="font-family:'Cormorant Garamond',serif;font-size:1.1rem;letter-spacing:.08em;color:var(--tx)">turngl</span>
+  </div>
+  <div style="width:1px;height:18px;background:var(--bd);flex-shrink:0"></div>
+  <p id="dt">Demo</p>
+  <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+    <button id="bl" class="ib" title="PDF Yukle / URL" aria-label="PDF Yukle / URL">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor"><path d="M2 9v3h10V9"/><line x1="7" y1="1" x2="7" y2="8"/><polyline points="4,5 7,8 10,5"/></svg>
+    </button>
+    <input type="file" id="pf" accept=".pdf" style="display:none">
+    <button id="tt" class="ib" title="Tema (L)" aria-label="Tema">
+      <svg class="is" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" style="stroke-width:1.4">
+        <circle cx="7" cy="7" r="2.5"/><line x1="7" y1="1" x2="7" y2="2.5"/><line x1="7" y1="11.5" x2="7" y2="13"/>
+        <line x1="1" y1="7" x2="2.5" y2="7"/><line x1="11.5" y1="7" x2="13" y2="7"/>
+        <line x1="2.9" y1="2.9" x2="3.9" y2="3.9"/><line x1="10.1" y1="10.1" x2="11.1" y2="11.1"/>
+        <line x1="11.1" y1="2.9" x2="10.1" y2="3.9"/><line x1="3.9" y1="10.1" x2="2.9" y2="11.1"/>
+      </svg>
+      <svg class="im" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" style="stroke-width:1.4">
+        <path d="M11.5 8.5A5 5 0 015.5 2.5 5 5 0 1011.5 8.5z"/>
+      </svg>
+    </button>
+    <button id="bkb" class="ib" title="Kisayollar (?)" aria-label="Kisayollar">
+      <svg viewBox="0 0 13 10" fill="none" stroke="currentColor"><rect x=".5" y=".5" width="12" height="9" rx="1.5"/><circle cx="3.5" cy="4.5" r=".8" fill="currentColor"/><circle cx="6.5" cy="4.5" r=".8" fill="currentColor"/><circle cx="9.5" cy="4.5" r=".8" fill="currentColor"/><line x1="4.5" y1="7" x2="8.5" y2="7" stroke-linecap="round" stroke-width="1.5"/></svg>
+    </button>
+    <button id="bfs" class="ib" title="Tam ekran (F)" aria-label="Tam ekran">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor"><path d="M1 4.5V1h3.5M9.5 1H13v3.5M13 9.5V13H9.5M4.5 13H1V9.5"/></svg>
+    </button>
+  </div>
+  <div id="pl"></div>
+</header>
+
+<!-- URL / File Popover -->
+<div id="urlpop" role="dialog" aria-label="PDF Kaynagi">
+  <p style="font-size:10px;color:var(--tx3);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase">PDF Source</p>
+  <input id="urlin" type="url" placeholder="https://example.com/document.pdf" spellcheck="false" aria-label="PDF URL"
+    value="https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf">
+  <div class="urldiv">
+    <button id="urlgo" class="tb on" style="height:32px;flex:1;border-radius:6px">Load URL</button>
+    <span style="color:var(--tx3)">or</span>
+    <button id="filego" class="tb" style="height:32px;border-radius:6px">Choose File</button>
+  </div>
 </div>
 
-<turn-gl id="book" theme="dark"></turn-gl>
-
-<div class="controls">
-  <button onclick="book.prev()">← Prev</button>
-  <button onclick="book.next()">Next →</button>
-  <button onclick="toggleTheme()">Toggle Theme</button>
+<div id="stage">
+  <turn-gl id="book" theme="dark"></turn-gl>
 </div>
+
+<div id="tbar">
+  <button id="b1" class="tb" title="First (Home)" aria-label="First page" disabled><svg viewBox="0 0 12 12" fill="none" stroke="currentColor"><line x1="1.5" y1="1.5" x2="1.5" y2="10.5"/><polyline points="10.5,2 4,6 10.5,10"/></svg></button>
+  <button id="b2" class="tb" title="Previous (←)" aria-label="Previous page" disabled><svg viewBox="0 0 12 12" fill="none" stroke="currentColor"><polyline points="8,2 3,6 8,10"/></svg></button>
+  <div class="pb"><input id="pi" type="number" value="1" min="1" autocomplete="off" aria-label="Page number"><span id="ps">/</span><span id="pt">0</span></div>
+  <button id="b3" class="tb" title="Next (→)" aria-label="Next page"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor"><polyline points="4,2 9,6 4,10"/></svg></button>
+  <button id="b4" class="tb" title="Last (End)" aria-label="Last page"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor"><line x1="10.5" y1="1.5" x2="10.5" y2="10.5"/><polyline points="1.5,2 8,6 1.5,10"/></svg></button>
+  <div class="sep"></div>
+  <button id="bzo" class="tb" title="Zoom out (−)" aria-label="Zoom out"><svg viewBox="0 0 13 13" fill="none" stroke="currentColor"><circle cx="5.5" cy="5.5" r="3.8"/><line x1="8.5" y1="8.5" x2="12" y2="12"/><line x1="3.5" y1="5.5" x2="7.5" y2="5.5"/></svg></button>
+  <div id="zp" title="Reset zoom (Z)" aria-label="Reset zoom">100%</div>
+  <button id="bzi" class="tb" title="Zoom in (+)" aria-label="Zoom in"><svg viewBox="0 0 13 13" fill="none" stroke="currentColor"><circle cx="5.5" cy="5.5" r="3.8"/><line x1="8.5" y1="8.5" x2="12" y2="12"/><line x1="3.5" y1="5.5" x2="7.5" y2="5.5"/><line x1="5.5" y1="3.5" x2="5.5" y2="7.5"/></svg></button>
+  <button id="bwf" class="tb" title="Fit (W)" aria-label="Fit to view"><svg viewBox="0 0 13 13" fill="none" stroke="currentColor"><polyline points="1,3.5 1,1 3.5,1"/><polyline points="9.5,1 12,1 12,3.5"/><polyline points="1,9.5 1,12 3.5,12"/><polyline points="9.5,12 12,12 12,9.5"/></svg></button>
+</div>
+
+<div id="kbm" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts"><div class="kbc">
+  <button id="kbc" class="ib" style="position:absolute;top:10px;right:10px" aria-label="Close"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg></button>
+  <p style="font-family:'Cormorant Garamond',serif;font-size:1.05rem;letter-spacing:.04em;color:var(--tx);margin-bottom:1rem">Keyboard Shortcuts</p>
+  <div class="kbg">
+    <kbd>← →</kbd><span class="kbl">Flip page</span>
+    <kbd>Drag</kbd><span class="kbl">Real-time flip with mouse</span>
+    <kbd>Home / End</kbd><span class="kbl">First / Last page</span>
+    <kbd>+ −  /  W  /  Z</kbd><span class="kbl">Zoom</span>
+    <kbd>L</kbd><span class="kbl">Dark / Light</span>
+    <kbd>F</kbd><span class="kbl">Fullscreen</span>
+  </div>
+</div></div>
+<div id="toast" aria-live="polite"></div>
 
 <script type="module">
-  // In a real project: import { TurnGLElement } from 'turngl';
-  // For this demo, load from parent dist:
-  import('../src/index.js').then(({ TurnGLElement }) => {
-    if (!customElements.get('turn-gl')) customElements.define('turn-gl', TurnGLElement);
+import('../src/index.js').then(({ TurnGLElement }) => {
+  if (!customElements.get('turn-gl')) customElements.define('turn-gl', TurnGLElement);
 
-    window.book = document.getElementById('book');
+  const book = document.getElementById('book');
+  const $ = id => document.getElementById(id);
+  let dark = true;
+  let toastTimer = null;
 
-    book.addEventListener('load',       e => console.log(`✅ ${e.detail.pages} pages loaded`));
-    book.addEventListener('pagechange', e => console.log(`📖 Spread ${e.detail.spread + 1}, Page ${e.detail.page}`));
-    book.addEventListener('error',      e => console.error('❌', e.detail));
+  function toast(msg) {
+    clearTimeout(toastTimer);
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    toastTimer = setTimeout(() => t.classList.remove('show'), 950);
+  }
 
-    // Auto-load default PDF
-    book.load(document.getElementById('urlInput').value);
+  function updateUI() {
+    const page = book.currentPage;
+    const total = book.totalPages;
+    const spread = Math.floor((page - 1) / 2);
+    const maxSpread = Math.ceil(total / 2) - 1;
 
-    window.loadURL = () => book.load(document.getElementById('urlInput').value);
-    window.toggleTheme = () => {
-      const t = book.getAttribute('theme');
-      book.setAttribute('theme', t === 'dark' ? 'light' : 'dark');
-    };
+    $('pi').value = page;
+    $('pt').textContent = total;
+    $('pl').style.width = total > 0 ? ((spread + 1) / (maxSpread + 1) * 100) + '%' : '0%';
+    $('zp').textContent = Math.round(book.zoom * 100) + '%';
+    $('b1').disabled = $('b2').disabled = spread === 0;
+    $('b3').disabled = $('b4').disabled = spread >= maxSpread;
+  }
+
+  function toggleTheme() {
+    dark = !dark;
+    const h = document.documentElement;
+    h.classList.add('ta');
+    h.classList.toggle('dark', dark);
+    h.classList.toggle('light', !dark);
+    book.setAttribute('theme', dark ? 'dark' : 'light');
+    setTimeout(() => h.classList.remove('ta'), 320);
+    toast(dark ? 'Dark Mode' : 'Light Mode');
+  }
+
+  // ── Events from component ──
+  book.addEventListener('load', e => {
+    const name = $('urlin').value.split('/').pop().split('?')[0] || 'document.pdf';
+    $('dt').textContent = name.replace(/\.pdf$/i, '');
+    updateUI();
   });
+  book.addEventListener('pagechange', () => updateUI());
+  book.addEventListener('zoomchange', () => updateUI());
+  book.addEventListener('error', e => {
+    console.error('PDF error:', e.detail);
+    toast('Error: ' + (e.detail?.message || 'Failed to load'));
+  });
+
+  // ── Navigation ──
+  $('b1').addEventListener('click', () => { book.goTo(0); });
+  $('b2').addEventListener('click', () => book.prev());
+  $('b3').addEventListener('click', () => book.next());
+  $('b4').addEventListener('click', () => { book.goTo((book.totalPages - 1)); });
+
+  const pi = $('pi');
+  pi.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { const v = parseInt(pi.value); if (!isNaN(v)) book.goTo(v - 1); pi.blur(); }
+    if (e.key === 'Escape') pi.blur();
+  });
+  pi.addEventListener('focus', () => pi.select());
+  pi.addEventListener('blur', () => updateUI());
+
+  // ── Zoom ──
+  $('bzo').addEventListener('click', () => { book.zoomOut(); toast(Math.round(book.zoom * 100) + '%'); });
+  $('bzi').addEventListener('click', () => { book.zoomIn(); toast(Math.round(book.zoom * 100) + '%'); });
+  $('bwf').addEventListener('click', () => { book.fitZoom(); toast(Math.round(book.zoom * 100) + '%'); });
+  $('zp').addEventListener('click', () => { book.resetZoom(); toast('100%'); });
+  $('stage').addEventListener('wheel', e => {
+    e.preventDefault();
+    if (e.deltaY < 0) book.zoomIn(); else book.zoomOut();
+    toast(Math.round(book.zoom * 100) + '%');
+  }, { passive: false });
+
+  // ── Theme ──
+  $('tt').addEventListener('click', toggleTheme);
+
+  // ── Fullscreen ──
+  $('bfs').addEventListener('click', () => {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+    else document.exitFullscreen();
+  });
+  document.addEventListener('fullscreenchange', () => {
+    $('bfs').classList.toggle('on', !!document.fullscreenElement);
+  });
+
+  // ── URL / File popover ──
+  $('bl').addEventListener('click', e => {
+    e.stopPropagation();
+    const pop = $('urlpop');
+    const show = !pop.classList.contains('show');
+    pop.classList.toggle('show', show);
+    if (show) setTimeout(() => $('urlin').focus(), 50);
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#urlpop') && !e.target.closest('#bl')) $('urlpop').classList.remove('show');
+  });
+  $('urlgo').addEventListener('click', () => {
+    const url = $('urlin').value.trim();
+    if (url) { $('urlpop').classList.remove('show'); book.load(url); }
+  });
+  $('urlin').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { const url = $('urlin').value.trim(); if (url) { $('urlpop').classList.remove('show'); book.load(url); } }
+  });
+  $('filego').addEventListener('click', () => $('pf').click());
+  $('pf').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    $('urlpop').classList.remove('show');
+    $('dt').textContent = file.name.replace(/\.pdf$/i, '');
+    const reader = new FileReader();
+    reader.onload = () => {
+      // Load from arraybuffer — need to use pdfjsLib directly
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      // We'll use a data URL trick via the component
+      const blob = new Blob([reader.result], { type: 'application/pdf' });
+      const blobUrl = URL.createObjectURL(blob);
+      book.load(blobUrl);
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  // ── Keyboard shortcuts modal ──
+  $('bkb').addEventListener('click', () => $('kbm').classList.add('open'));
+  $('kbc').addEventListener('click', () => $('kbm').classList.remove('open'));
+  $('kbm').addEventListener('click', e => { if (e.target === $('kbm')) $('kbm').classList.remove('open'); });
+
+  // ── Keyboard shortcuts ──
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    switch (e.key) {
+      case 'ArrowRight': case 'ArrowDown': book.next(); break;
+      case 'ArrowLeft': case 'ArrowUp': book.prev(); break;
+      case '+': case '=': book.zoomIn(); toast(Math.round(book.zoom * 100) + '%'); break;
+      case '-': book.zoomOut(); toast(Math.round(book.zoom * 100) + '%'); break;
+      case 'w': case 'W': book.fitZoom(); toast(Math.round(book.zoom * 100) + '%'); break;
+      case 'z': case 'Z': book.resetZoom(); toast('100%'); break;
+      case 'l': case 'L': toggleTheme(); break;
+      case 'f': case 'F': $('bfs').click(); break;
+      case '?': $('bkb').click(); break;
+      case 'Home': book.goTo(0); break;
+      case 'End': book.goTo(book.totalPages - 1); break;
+      case 'Escape':
+        $('kbm').classList.remove('open');
+        if (document.fullscreenElement) document.exitFullscreen();
+        break;
+    }
+  });
+
+  // ── Auto-load ──
+  book.load($('urlin').value);
+});
 </script>
 </body>
 </html>

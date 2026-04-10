@@ -1,6 +1,6 @@
 {
   "name": "turngl",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "WebGL-powered 3D PDF flipbook with real page curl. Drag to flip, dark/light mode, zero dependencies beyond Three.js and PDF.js.",
   "main": "dist/turngl.js",
   "module": "dist/turngl.esm.js",

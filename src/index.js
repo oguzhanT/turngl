@@ -60,9 +60,9 @@ export class Book3D {
     key.shadow.radius = 4;
     sc.add(key);
 
-    sc.add(Object.assign(new THREE.PointLight(0xe8f0ff, 0.25), {
-      position: new THREE.Vector3(-3, 0, 4)
-    }));
+    const fill = new THREE.PointLight(0xe8f0ff, 0.25);
+    fill.position.set(-3, 0, 4);
+    sc.add(fill);
 
     // Static pages
     this.meshL = this._pageMesh();
@@ -74,13 +74,12 @@ export class Book3D {
     sc.add(this.meshR);
 
     // Spine
-    sc.add(Object.assign(
-      new THREE.Mesh(
-        new THREE.BoxGeometry(0.04, PH + 0.02, 0.015),
-        new THREE.MeshLambertMaterial({ color: 0x030202 })
-      ),
-      { position: new THREE.Vector3(0, 0, 0.005) }
-    ));
+    const spine = new THREE.Mesh(
+      new THREE.BoxGeometry(0.04, PH + 0.02, 0.015),
+      new THREE.MeshLambertMaterial({ color: 0x030202 })
+    );
+    spine.position.set(0, 0, 0.005);
+    sc.add(spine);
 
     // Shadow floor
     const floor = new THREE.Mesh(
@@ -200,7 +199,8 @@ export class Book3D {
       const nx = _nx[i];
       const t  = dir === 'fwd' ? nx + 0.5 : 0.5 - nx;
       const d  = t * PW;
-      const vp = clamp(progress + (t - 0.5) * LEAD, 0, 1);
+      const adjProg = progress * (1 + LEAD) - LEAD * 0.5;
+      const vp = clamp(adjProg + (t - 0.5) * LEAD, 0, 1);
       const a  = vp * Math.PI;
       pos.setX(i, dir === 'fwd' ?  d * Math.cos(a) : -d * Math.cos(a));
       pos.setZ(i, d * Math.sin(a));
@@ -289,6 +289,7 @@ export class TurnGLElement extends HTMLElement {
     this._anim    = false;
     this._drag    = null;
     this._dragging = false;
+    this._zoom    = 1;
   }
 
   connectedCallback() {
@@ -442,6 +443,36 @@ export class TurnGLElement extends HTMLElement {
     if (Math.abs(s - this._spread) === 1) { s > this._spread ? this.next() : this.prev(); return; }
     this._spread = s;
     this._showSpread();
+    this.dispatchEvent(new CustomEvent('pagechange', {
+      detail: { spread: this._spread, page: this._li + 1 }
+    }));
+  }
+
+  /* ── Page info ───────────────────────────────────────── */
+  get currentPage() { return this._li + 1; }
+  get totalPages()  { return this._total; }
+
+  /* ── Zoom ────────────────────────────────────────────── */
+  _ZOOM_STEPS = [.35, .5, .65, .75, .85, 1, 1.15, 1.3, 1.5, 1.75, 2, 2.4];
+
+  get zoom() { return this._zoom ?? 1; }
+  set zoom(v) {
+    this._zoom = clamp(v, 0.3, 2.5);
+    if (this._book) this._book.setZoom(this._zoom);
+    this.dispatchEvent(new CustomEvent('zoomchange', { detail: { zoom: this._zoom } }));
+  }
+
+  zoomIn() {
+    const n = this._ZOOM_STEPS.find(v => v > this.zoom + 0.005);
+    if (n) this.zoom = n;
+  }
+  zoomOut() {
+    const n = [...this._ZOOM_STEPS].reverse().find(v => v < this.zoom - 0.005);
+    if (n) this.zoom = n;
+  }
+  resetZoom() { this.zoom = 1; }
+  fitZoom() {
+    this.zoom = clamp(this.clientHeight / 500, 0.4, 1.8);
   }
 
   /* ── Drag to flip ──────────────────────────────────────── */
